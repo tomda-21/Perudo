@@ -10,7 +10,7 @@ const PIPS: Record<number, number[]> = {
 
 type Props = {
   value: number | null; // null = dé caché
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   highlight?: boolean;
   dim?: boolean;
 };
