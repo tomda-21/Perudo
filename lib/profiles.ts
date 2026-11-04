@@ -8,7 +8,9 @@
 import "server-only";
 import { createHash, randomBytes, randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
-import { AVATARS, CUPS, isAvatarId, isCupId, isUnlocked, Stats } from "./catalog";
+import { AVATARS, isAvatarId, isUnlocked, Stats } from "./catalog";
+import { publicContent } from "./content-server";
+import { srv } from "./srv";
 import { RuleError, ResultRow } from "./rules";
 
 const sha = (x: string) => createHash("sha256").update(x).digest("hex");
@@ -41,6 +43,25 @@ export async function authProfile(id: string | null | undefined, key: string | n
   const r = await getRow(id);
   if (!r || r.key_sha256 !== sha(key)) return null;
   return r;
+}
+
+/** Profil bloqué par l'admin ? (il ne peut plus créer ni rejoindre de partie) */
+export async function isBlocked(id: string) {
+  const r = await srv<{ blocked: boolean } | null>("admin_get", { profile_id: id });
+  return !!r?.blocked;
+}
+
+/**
+ * Gobelets obtenus : ceux déjà gagnés (conservés pour toujours, même si
+ * l'admin durcit une condition) + ceux que les stats actuelles débloquent.
+ */
+async function unlockedCups(id: string, stats: Stats) {
+  const [cups, kept] = await Promise.all([publicContent().then((c) => c.cups), srv<string[]>("unlocks_get", { profile_id: id })]);
+  const now = cups.filter((c) => isUnlocked(c.cond, stats)).map((c) => c.id);
+  const fresh = now.filter((x) => !kept.includes(x));
+  if (fresh.length) await srv("unlocks_add", { profile_id: id, ids: fresh });
+  const all = new Set([...kept, ...now]);
+  return { cups, unlocked: cups.filter((c) => all.has(c.id)).map((c) => c.id) };
 }
 
 const cleanName = (n: unknown) => String(n ?? "").trim().slice(0, 20);
@@ -86,13 +107,15 @@ export function computeStats(rows: ResultDb[]): Stats {
 export async function profilePayload(r: Row) {
   const rows = await results(r.id);
   const stats = computeStats(rows);
+  const { unlocked, cups } = await unlockedCups(r.id, stats);
   return {
     profile: {
       id: r.id, name: r.name, avatar: r.avatar, hasPhoto: !!r.photo, photoV: r.photo_v,
       cup: r.cup, since: r.created_at, publicAvatar: publicAvatar(r),
     },
     stats,
-    unlocked: CUPS.filter((c) => isUnlocked(c.cond, stats)).map((c) => c.id),
+    unlocked,
+    cups,
     recent: rows.slice(-10).reverse().map((x) => ({ won: x.won, at: x.finished_at, humans: x.humans, rounds: x.rounds })),
   };
 }
@@ -119,12 +142,11 @@ export async function updateProfile(r: Row, patch: Record<string, unknown>) {
     next.photo_v = r.photo_v + 1;
   }
   if ("cup" in patch) {
-    if (!isCupId(patch.cup)) throw new RuleError("Gobelet inconnu");
     // le déblocage est vérifié ici, côté serveur, depuis les vrais résultats
     const stats = computeStats(await results(r.id));
-    const cup = CUPS.find((c) => c.id === patch.cup)!;
-    if (!isUnlocked(cup.cond, stats)) throw new RuleError("Ce gobelet n'est pas encore débloqué");
-    next.cup = cup.id;
+    const { unlocked } = await unlockedCups(r.id, stats);
+    if (!unlocked.includes(String(patch.cup))) throw new RuleError("Ce gobelet n'est pas encore débloqué");
+    next.cup = String(patch.cup);
   }
   await putRow(next);
   return (await getRow(r.id))!;

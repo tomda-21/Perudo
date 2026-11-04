@@ -3,28 +3,50 @@
 //  Dès qu'une vraie illustration est déposée (voir ASSETS.md), elle
 //  s'affiche par-dessus automatiquement : rien d'autre à changer.
 // =============================================================
+"use client";
 import { HOME_ART, MAPS } from "@/lib/catalog";
+import { assetUrl, MapAnim } from "@/lib/content";
+import { useContent } from "@/lib/content-client";
 
-export type SceneId = "casino" | (typeof MAPS)[number]["id"];
+export type SceneId = string; // "casino" (accueil) ou l'identifiant d'une map
 
-function imageFor(id: SceneId): string | null {
-  if (id === "casino") return HOME_ART.art ? HOME_ART.background : null;
-  const m = MAPS.find((x) => x.id === id);
-  return m && m.art ? m.image : null;
-}
+const BUILTIN = ["casino", "beach", "hell", "heaven", "street"];
 
-export default function Scene({ id }: { id: SceneId }) {
+/**
+ * Un décor = (1) le dessin d'origine si la map en a un, (2) l'image de fond
+ * importée dans l'admin, (3) des calques par-dessus, (4) des animations prédéfinies.
+ */
+export default function Scene({ id, override, contained }: { id: SceneId; override?: { image?: string | null; layers?: string[]; anims?: MapAnim[]; scene?: string | null }; contained?: boolean }) {
+  const { maps, appearance } = useContent();
+  const m = override ?? maps.find((x) => x.id === id);
+  const scene = id === "casino" ? "casino" : m?.scene ?? (m ? null : BUILTIN.includes(id) ? id : "beach");
+  let image: string | null = null;
+  if (id === "casino") image = appearance.homeBackground ? assetUrl(appearance.homeBackground) : HOME_ART.art ? HOME_ART.background : null;
+  else if (m?.image) image = assetUrl(m.image);
+  else { const b = MAPS.find((x) => x.id === scene); if (b?.art) image = b.image; }
+  const anims = (m && "anims" in m ? m.anims : []) ?? [];
   return (
-    <div className={`scene scene-${id}`} aria-hidden="true">
-      <svg className="scene-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
-        {id === "casino" && <Casino />}
-        {id === "beach" && <Beach />}
-        {id === "hell" && <Hell />}
-        {id === "heaven" && <Heaven />}
-        {id === "street" && <Street />}
-      </svg>
-      {/* vraie illustration (si le fichier existe) */}
-      {imageFor(id) && <div className="scene-photo" style={{ backgroundImage: `url(${imageFor(id)})` }} />}
+    <div className={`scene scene-${scene ?? "custom"} ${contained ? "scene-contained" : ""}`} aria-hidden="true">
+      {scene && (
+        <svg className="scene-svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+          {scene === "casino" && <Casino />}
+          {scene === "beach" && <Beach />}
+          {scene === "hell" && <Hell />}
+          {scene === "heaven" && <Heaven />}
+          {scene === "street" && <Street />}
+        </svg>
+      )}
+      {image && <div className="scene-photo" style={{ backgroundImage: `url(${image})` }} />}
+      {(m?.layers ?? []).map((l) => <div key={l} className="scene-photo scene-layer" style={{ backgroundImage: `url(${assetUrl(l)})` }} />)}
+      {anims.length > 0 && (
+        <svg className="scene-svg scene-fx" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+          {anims.includes("embers") && <Particles n={40} color="#ffb347" cls="ember" area={[0, 400, 1600, 500]} />}
+          {anims.includes("sparkles") && <Particles n={40} color="#fff2a8" cls="sparkle" />}
+          {anims.includes("float") && <Particles n={30} color="#ffe9a6" cls="float" />}
+          {anims.includes("rain") && <Particles n={70} color="#cfe6ff" cls="rain" area={[0, -100, 1600, 900]} />}
+          {anims.includes("clouds") && <><Cloud x={300} y={160} s={1.2} fill="rgba(255,255,255,0.7)" /><Cloud x={1250} y={120} s={1} fill="rgba(255,255,255,0.6)" /></>}
+        </svg>
+      )}
       <div className="scene-vignette" />
     </div>
   );

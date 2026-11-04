@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Die from "./Die";
 import { checkBid } from "@/lib/bids";
-import { MAPS } from "@/lib/catalog";
+import { useContent } from "@/lib/content-client";
 import type { PlayerView } from "@/lib/rules";
 
 // ---------- barre de commandes ----------
@@ -54,7 +54,7 @@ export function ControlBar({ view, myTurn, imOut, busy, act, peek, onPeek, shaki
           <div className="bid-actions">
             <button className="gbtn gbtn-green" disabled={busy || !!err} onClick={() => act({ type: "bid", qty, face })} title={err ?? ""}>▶ Enchérir</button>
             {view.bid && <button className="gbtn gbtn-red" disabled={busy} onClick={() => act({ type: "liar" })}>⚡ Menteur !</button>}
-            {view.bid && <button className="gbtn gbtn-gold" disabled={busy} onClick={() => act({ type: "exact" })}>🎯 Exact !</button>}
+            {view.bid && view.config?.exactEnabled !== false && <button className="gbtn gbtn-gold" disabled={busy} onClick={() => act({ type: "exact" })}>🎯 Exact !</button>}
           </div>
           {err && <p className="hint bar-hint">{err}</p>}
         </>
@@ -69,6 +69,7 @@ export function ControlBar({ view, myTurn, imOut, busy, act, peek, onPeek, shaki
 export function Lobby({ view, isHost, busy, copied, onShare, act }: {
   view: PlayerView; isHost: boolean; busy: boolean; copied: boolean; onShare: () => void; act: (b: Record<string, unknown>) => void;
 }) {
+  const { maps: MAPS } = useContent();
   const bots = view.players.filter((p) => p.isBot);
   const full = view.players.length >= 8;
   return (

@@ -5,7 +5,7 @@ import { Modal } from "./Panel";
 import Avatar from "./Avatar";
 import Cup from "./Cup";
 import { api, MyProfile, rememberName } from "@/lib/client";
-import { AVATARS, CUPS, condLabel, condProgress } from "@/lib/catalog";
+import { AVATARS, condLabel, condProgress } from "@/lib/catalog";
 import { useSettings } from "@/lib/settings";
 import { playSound } from "@/lib/sfx";
 import { unlockAudio } from "@/lib/sound";
@@ -46,6 +46,8 @@ async function shrinkPhoto(file: File): Promise<string> {
 // ---------- MON PROFIL ----------
 export function ProfileModal({ onClose, profile }: { onClose: () => void; profile: ReturnType<typeof useMyProfile> }) {
   const { data, setData, error } = profile;
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => { fetch("/api/admin/login", { cache: "no-store" }).then((r) => r.json()).then((r) => setIsAdmin(!!r.admin)).catch(() => {}); }, []);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -102,6 +104,8 @@ export function ProfileModal({ onClose, profile }: { onClose: () => void; profil
           )}
           {msg && <p className="hint">{msg}</p>}
 
+          {isAdmin && <a href="/admin" className="gbtn gbtn-purple gbtn-sm admin-entry">🛠 Ouvrir Perudo Admin</a>}
+
           <div className="section-title">Statistiques</div>
           <div className="stat-grid">
             <Stat icon="🎲" value={data.stats.played} label="Parties jouées" />
@@ -157,7 +161,7 @@ export function CupsModal({ onClose, profile }: { onClose: () => void; profile: 
       {!data ? <p className="muted">{error || "Chargement…"}</p> : (
         <>
           <div className="cup-grid">
-            {CUPS.map((c) => {
+            {(data.cups ?? []).map((c) => {
               const unlocked = data.unlocked.includes(c.id);
               const equipped = data.profile.cup === c.id;
               const p = condProgress(c.cond, data.stats);
@@ -167,6 +171,8 @@ export function CupsModal({ onClose, profile }: { onClose: () => void; profile: 
                   {!unlocked && <span className="lock" aria-label="Verrouillé">🔒</span>}
                   {equipped && <span className="check" aria-label="Équipé">✓</span>}
                   <div className="cup-name">{c.name}</div>
+                  {c.rarity && c.rarity !== "commun" && <div className={`rarity rarity-${c.rarity === "épique" ? "epic" : c.rarity === "légendaire" ? "legend" : "rare"}`}>{c.rarity}</div>}
+                  {c.description && <div className="cup-desc">{c.description}</div>}
                   {equipped ? <div className="pill pill-green">Équipé</div>
                     : unlocked ? <button className="pill pill-btn" onClick={() => equip(c.id)}>Équiper</button>
                     : <div className="pill">{condLabel(c.cond)}</div>}

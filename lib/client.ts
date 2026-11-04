@@ -45,6 +45,7 @@ export type MyProfile = {
   profile: { id: string; name: string; avatar: string; hasPhoto: boolean; photoV: number; cup: string; since: string; publicAvatar: string };
   stats: import("./catalog").Stats;
   unlocked: string[];
+  cups: import("./content").CupItem[];
   recent: { won: boolean; at: string; humans: number; rounds: number }[];
 };
 

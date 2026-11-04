@@ -1,6 +1,9 @@
 // Le logo PERUDO : lettres dorées sur un panneau en bois, dés et couronne.
 // Dessiné en SVG pour rester net à toutes les tailles.
-export default function Logo({ size = "lg" }: { size?: "sm" | "lg" }) {
+import { assetUrl } from "@/lib/content";
+
+export default function Logo({ size = "lg", image }: { size?: "sm" | "lg"; image?: string | null }) {
+  if (image) return <div className={`logo-wrap logo-${size}`}><img src={assetUrl(image)!} alt="Perudo" /></div>;
   return (
     <div className={`logo-wrap logo-${size}`} aria-label="Perudo — bluff, dés et menteurs entre potes">
       <svg viewBox="0 0 520 260" role="img">

@@ -12,7 +12,7 @@
 
 import { randomBytes, randomInt, randomUUID } from "crypto";
 import { BOT_NAMES, decide } from "./bot";
-import { BOT_AVATARS, MAPS, MapId, isMapId } from "./catalog";
+import { BOT_AVATARS, MAPS } from "./catalog";
 
 export const MAX_DICE = 5;
 export const MIN_PLAYERS = 2;
@@ -70,13 +70,25 @@ export type GameState = {
   reveal: Reveal | null;
   nextStarterId: string | null;
   winnerId: string | null;
-  map?: MapId; // décor de la partie (cosmétique)
+  map?: string; // décor de la partie (cosmétique)
+  config?: GameConfig; // règles figées à la création du salon
   gameNo?: number; // numéro de la partie dans ce salon (rejouer = +1)
   recorded?: boolean; // résultats déjà enregistrés dans les stats ?
   abandoned?: boolean; // plus aucun humain : partie arrêtée, non comptée
 };
 
 export class RuleError extends Error {}
+
+/** Variantes réglables par l'admin. Figées dans chaque partie dès sa création. */
+export type GameConfig = { startDice: number; exactEnabled: boolean; palificoEnabled: boolean };
+export const DEFAULT_CONFIG: GameConfig = { startDice: MAX_DICE, exactEnabled: true, palificoEnabled: true };
+const cfg = (s: GameState) => s.config ?? DEFAULT_CONFIG;
+const startDice = (s: GameState) => cfg(s).startDice;
+
+/** Maps autorisées (gérées par l'admin) : toutes, et celles du tirage au hasard. */
+export type MapPool = { all: string[]; random: string[] };
+export const DEFAULT_POOL: MapPool = { all: MAPS.map((m) => m.id), random: MAPS.map((m) => m.id) };
+const pick = (list: string[]) => list[randomInt(0, list.length)];
 
 // ---------- utilitaires ----------
 
@@ -104,10 +116,13 @@ const roll = (n: number) => Array.from({ length: n }, () => randomInt(1, 7));
 
 // ---------- création / lobby ----------
 
-export function newGame(code: string, map?: MapId): GameState {
+export function newGame(code: string, map?: string, opts: { config?: GameConfig; pool?: MapPool } = {}): GameState {
+  const pool = opts.pool ?? DEFAULT_POOL;
+  const randomPool = pool.random.length ? pool.random : pool.all;
   return {
     code,
-    map: map ?? MAPS[randomInt(0, MAPS.length)].id,
+    map: map && pool.all.includes(map) ? map : pick(randomPool.length ? randomPool : DEFAULT_POOL.all),
+    config: opts.config ?? DEFAULT_CONFIG,
     gameNo: 1,
     recorded: false,
     phase: "lobby",
@@ -140,7 +155,7 @@ export function addPlayer(s: GameState, id: string, name: string, token: string,
     seat: s.players.length,
     token,
     hand: [],
-    diceCount: MAX_DICE,
+    diceCount: startDice(s),
     palificoUsed: false,
     isHost: s.players.length === 0,
     isBot: false,
@@ -151,12 +166,12 @@ export function addPlayer(s: GameState, id: string, name: string, token: string,
   });
 }
 
-export function setMap(s: GameState, byPlayerId: string, map: string) {
+export function setMap(s: GameState, byPlayerId: string, map: string, pool: MapPool = DEFAULT_POOL) {
   const p = byId(s, byPlayerId);
   if (!p.isHost) throw new RuleError("Seul l'hôte peut choisir la map");
   if (s.phase !== "lobby") throw new RuleError("La partie a déjà commencé");
-  if (map === "random") s.map = MAPS[randomInt(0, MAPS.length)].id;
-  else if (isMapId(map)) s.map = map;
+  if (map === "random") s.map = pick(pool.random.length ? pool.random : pool.all);
+  else if (pool.all.includes(map)) s.map = map;
   else throw new RuleError("Map inconnue");
 }
 
@@ -247,7 +262,7 @@ export function addBot(s: GameState, byPlayerId: string) {
     seat: s.players.length,
     token: randomBytes(24).toString("hex"),
     hand: [],
-    diceCount: MAX_DICE,
+    diceCount: startDice(s),
     palificoUsed: false,
     isHost: false,
     isBot: true,
@@ -279,7 +294,7 @@ export function botStep(s: GameState, expectedKey: string) {
   const d = decide({ hand: bot.hand, bid: s.bid, totalDice: totalDice(s), palifico: s.palifico });
   try {
     if (d.type === "liar") return callLiar(s, bot.id);
-    if (d.type === "exact") return callExact(s, bot.id);
+    if (d.type === "exact") return cfg(s).exactEnabled ? callExact(s, bot.id) : callLiar(s, bot.id);
     return placeBid(s, bot.id, { qty: d.qty, face: d.face });
   } catch {
     // filet de sécurité : si jamais l'annonce choisie n'est pas valable
@@ -332,7 +347,7 @@ function loseDie(s: GameState, playerId: string) {
   const p = byId(s, playerId);
   p.diceCount -= 1;
   // Palifico : seulement la toute première fois que le joueur tombe à 1 dé
-  if (p.diceCount === 1 && !p.palificoUsed) {
+  if (p.diceCount === 1 && !p.palificoUsed && cfg(s).palificoEnabled) {
     p.palificoUsed = true;
     s.palificoNext = true;
   }
@@ -392,6 +407,7 @@ export function callLiar(s: GameState, playerId: string) {
 
 export function callExact(s: GameState, playerId: string) {
   assertTurn(s, playerId);
+  if (!cfg(s).exactEnabled) throw new RuleError("« Exact » est désactivé dans ce salon");
   if (!s.bid || !s.bidderId) throw new RuleError("Personne n'a encore annoncé");
   const hands = snapshotHands(s);
   const count = countMatching(Object.values(hands), s.bid.face, s.palifico);
@@ -403,7 +419,7 @@ export function callExact(s: GameState, playerId: string) {
   me.st.exactCalls++;
   if (count === s.bid.qty) {
     me.st.exactWins++;
-    if (me.diceCount < MAX_DICE) me.diceCount += 1;
+    if (me.diceCount < startDice(s)) me.diceCount += 1;
     gainerId = playerId;
   } else {
     loserId = playerId;
@@ -443,7 +459,7 @@ export function restart(s: GameState, playerId: string) {
   s.players.forEach((x, i) => (x.seat = i));
   if (s.players.length < MIN_PLAYERS) throw new RuleError("Il faut au moins 2 joueurs");
   for (const x of s.players) {
-    x.diceCount = MAX_DICE;
+    x.diceCount = startDice(s);
     x.palificoUsed = false;
     x.hand = [];
     x.st = freshStats();

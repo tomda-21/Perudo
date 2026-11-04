@@ -7,7 +7,7 @@ import Die from "./Die";
 import Cup from "./Cup";
 import Avatar from "./Avatar";
 import type { PlayerView, PublicPlayer } from "@/lib/rules";
-import { PHRASES, SOUNDS } from "@/lib/catalog";
+import { useContent } from "@/lib/content-client";
 
 export type SeatFx = { kind: "sound" | "phrase"; id: string; key: number };
 
@@ -35,6 +35,7 @@ const FX_EMOJI: Record<string, string[]> = {
 };
 
 export default function Table({ view, myId, present, shaking, peek, fx, onCupClick }: Props) {
+  const { sounds: SOUNDS, phrases: PHRASES } = useContent();
   const seats = [...view.players].sort((a, b) => a.seat - b.seat);
   const meIdx = Math.max(0, seats.findIndex((p) => p.id === myId));
   const ordered = [...seats.slice(meIdx), ...seats.slice(0, meIdx)];

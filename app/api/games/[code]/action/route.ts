@@ -6,13 +6,15 @@ import {
 } from "@/lib/rules";
 import { mutate } from "@/lib/store";
 import { addResults } from "@/lib/profiles";
-import { cleanCode, handle, json, playerFromToken } from "@/lib/api";
+import { cleanCode, handle, json, mapPool, playerFromToken } from "@/lib/api";
+import { publicContent } from "@/lib/content-server";
 
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
   try {
     const code = cleanCode((await params).code);
     const body = await req.json();
     const token = req.headers.get("x-player-token");
+    const pool = body.type === "setMap" ? mapPool(await publicContent()) : undefined;
     let meId = "";
     let rows: ResultRow[] = [];
     const state = await mutate(code, (s) => {
@@ -32,7 +34,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
         case "restart": restart(s, me.id); break;
         case "addBot": addBot(s, me.id); break;
         case "removeBot": removeBot(s, me.id, String(body.botId)); break;
-        case "setMap": setMap(s, me.id, String(body.map)); break;
+        case "setMap": setMap(s, me.id, String(body.map), pool); break;
         case "leave": leaveGame(s, me.id); break;
         // n'importe quel joueur connecté peut « réveiller » le bot dont c'est le tour
         case "bot": botStep(s, String(body.expect)); break;

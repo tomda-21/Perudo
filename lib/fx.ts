@@ -9,7 +9,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { realtime } from "./client";
 import { getSettings } from "./settings";
 import { playSound, speakPhrase } from "./sfx";
-import { FX_COOLDOWN_MS, PHRASES, SOUNDS } from "./catalog";
+import { getContent } from "./content-client";
 import type { SeatFx } from "@/components/Table";
 
 export function useFx(code: string, myId: string | null) {
@@ -20,9 +20,11 @@ export function useFx(code: string, myId: string | null) {
 
   const show = useCallback((from: string, kind: "sound" | "phrase", id: string) => {
     // on ignore les effets inconnus (ou trafiqués)
-    if (kind === "sound" ? !SOUNDS.some((s) => s.id === id) : !PHRASES.some((p) => p.id === id)) return;
+    const c = getContent();
+    if (!c.settings.fxEnabled) return;
+    if (kind === "sound" ? !c.sounds.some((s) => s.id === id) : !c.phrases.some((p) => p.id === id)) return;
     const now = Date.now();
-    if (now - (lastFrom.current[from] ?? 0) < FX_COOLDOWN_MS * 0.6) return; // anti-spam côté réception
+    if (now - (lastFrom.current[from] ?? 0) < c.settings.fxCooldownSec * 600) return; // anti-spam côté réception
     lastFrom.current[from] = now;
     if (kind === "sound") playSound(id); else speakPhrase(id);
     if (!getSettings().bubbles) return;
@@ -50,7 +52,7 @@ export function useFx(code: string, myId: string | null) {
     if (!myId) return;
     const now = Date.now();
     if (now < cooldownUntil) return;
-    setCooldownUntil(now + FX_COOLDOWN_MS);
+    setCooldownUntil(now + getContent().settings.fxCooldownSec * 1000);
     lastFrom.current[myId] = 0;
     show(myId, kind, id);
     ch.current?.send({ type: "broadcast", event: "fx", payload: { from: myId, kind, id } });

@@ -8,7 +8,8 @@
 // =============================================================
 import { ac, out } from "./sound";
 import { getSettings } from "./settings";
-import { PHRASES, SOUNDS } from "./catalog";
+import { getContent } from "./content-client";
+import { assetUrl } from "./content";
 
 type Synth = (a: AudioContext, t: number, dest: AudioNode) => void;
 
@@ -118,32 +119,51 @@ const SYNTHS: Record<string, Synth> = {
 // Pour éviter la cacophonie : pas plus de 3 bruitages en même temps
 let playing = 0;
 
+/** Aperçu d'un bruitage dans l'admin (avant publication). */
+export function previewSound(def: { file?: string | null; synth?: string | null; volume?: number }) {
+  const s = getSettings();
+  const vol = Math.min(1, Math.max(0.05, s.volume) * (def.volume ?? 1));
+  if (def.file) { const el = new Audio(assetUrl(def.file)!); el.volume = vol; el.play().catch(() => {}); return; }
+  const a = ac();
+  if (!a) return;
+  const g = a.createGain(); g.gain.value = def.volume ?? 1; g.connect(out(a));
+  if (def.synth) SYNTHS[def.synth]?.(a, a.currentTime + 0.05, g);
+}
+export function previewVoice(text: string, audio?: string | null) {
+  if (audio) { const el = new Audio(assetUrl(audio)!); el.play().catch(() => {}); return; }
+  try { const u = new SpeechSynthesisUtterance(text); u.lang = "fr-FR"; speechSynthesis.cancel(); speechSynthesis.speak(u); } catch {}
+}
+
 export function playSound(id: string) {
   const s = getSettings();
   if (!s.soundboard || s.volume <= 0) return;
   if (playing >= 3) return;
-  const def = SOUNDS.find((x) => x.id === id);
+  const def = getContent().sounds.find((x) => x.id === id);
   if (!def) return;
   playing++;
   setTimeout(() => (playing = Math.max(0, playing - 1)), 1800);
+  const vol = Math.min(1, s.volume * (def.volume ?? 1));
   if (def.file) {
-    const el = new Audio(def.file);
-    el.volume = s.volume;
+    const el = new Audio(assetUrl(def.file)!);
+    el.volume = vol;
     el.play().catch(() => {});
     return;
   }
   const a = ac();
   if (!a || a.state !== "running") return;
-  SYNTHS[id]?.(a, a.currentTime + 0.02, out(a));
+  const g = a.createGain();
+  g.gain.value = def.volume ?? 1;
+  g.connect(out(a));
+  SYNTHS[def.synth ?? id]?.(a, a.currentTime + 0.02, g);
 }
 
 export function speakPhrase(id: string) {
   const s = getSettings();
   if (!s.voices || s.volume <= 0) return;
-  const p = PHRASES.find((x) => x.id === id);
+  const p = getContent().phrases.find((x) => x.id === id);
   if (!p) return;
   if (p.audio) {
-    const el = new Audio(p.audio);
+    const el = new Audio(assetUrl(p.audio)!);
     el.volume = s.volume;
     el.play().catch(() => {});
     return;

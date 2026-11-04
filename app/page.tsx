@@ -10,6 +10,8 @@ import Scene from "@/components/Scene";
 import Logo from "@/components/Logo";
 import Avatar from "@/components/Avatar";
 import { HOME_ART } from "@/lib/catalog";
+import { assetUrl } from "@/lib/content";
+import { useContent } from "@/lib/content-client";
 import { CupsModal, ProfileModal, RulesModal, SettingsModal, useMyProfile } from "@/components/Menus";
 
 type Menu = null | "profile" | "cups" | "settings" | "rules";
@@ -44,6 +46,8 @@ export default function Home() {
   }
 
   const me = profile.data?.profile;
+  const { appearance } = useContent();
+  const mascot = appearance.mascot ? assetUrl(appearance.mascot) : HOME_ART.art ? HOME_ART.mascot : null;
 
   return (
     <main className="home-screen">
@@ -60,15 +64,11 @@ export default function Home() {
       </nav>
 
       <div className="home-center">
-        <Logo />
+        <Logo image={appearance.logo} />
 
         <div className="home-mascot" aria-hidden="true">
-          {HOME_ART.art ? <img src={HOME_ART.mascot} alt="" /> : (
-            <>
-              <Avatar name="Gobelin" avatar="gobelin" size={110} />
-              <div className="mascot-bubble">T&apos;oses bluffer ?</div>
-            </>
-          )}
+          {mascot ? <img src={mascot} alt="" /> : <Avatar name="Gobelin" avatar="gobelin" size={110} />}
+          {appearance.tagline && <div className="mascot-bubble">{appearance.tagline}</div>}
         </div>
 
         <section className="panel home-panel">

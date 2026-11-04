@@ -4,7 +4,7 @@
 //  Cette page ne décide jamais du jeu : elle affiche l'état envoyé
 //  par le serveur et lui transmet les actions du joueur.
 // =============================================================
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Die from "@/components/Die";
@@ -19,7 +19,7 @@ import { api, getSession, lastName, realtime, rememberName, saveSession, Session
 import { sounds, unlockAudio } from "@/lib/sound";
 import { useSettings } from "@/lib/settings";
 import { useFx } from "@/lib/fx";
-import { MAPS, PHRASES, SOUNDS } from "@/lib/catalog";
+import { useContent } from "@/lib/content-client";
 import type { PlayerView } from "@/lib/rules";
 
 const faceLabel = (face: number) => (face === 1 ? "pax" : `${face}`);
@@ -41,6 +41,7 @@ export default function GamePage() {
   const [panel, setPanel] = useState<null | "sounds" | "phrases">(null);
   const [dialog, setDialog] = useState<null | "quit" | "settings">(null);
   const [settings, setSettings] = useSettings();
+  const { maps: MAPS, sounds: SOUNDS, phrases: PHRASES, settings: game } = useContent();
 
   useEffect(() => {
     const u = () => unlockAudio();
@@ -190,10 +191,12 @@ export default function GamePage() {
   const myTurn = view.phase === "bidding" && view.turnId === me.id;
   const imOut = view.phase !== "lobby" && me.diceCount === 0;
   const onlyBots = view.players.filter((p) => !p.isBot && !p.left).length === 1;
-  const mapName = MAPS.find((m) => m.id === view.map)?.name;
+  const mapItem = MAPS.find((m) => m.id === view.map);
+  const mapName = mapItem?.name;
 
   return (
-    <main className={`game-screen phase-${view.phase} map-${view.map ?? "beach"} ${myTurn ? "my-turn" : ""}`}>
+    <main className={`game-screen phase-${view.phase} map-${mapItem?.scene ?? view.map ?? "beach"} ${myTurn ? "my-turn" : ""}`}
+      style={mapItem?.felt ? ({ ["--felt" as string]: mapItem.felt } as CSSProperties) : undefined}>
       <Scene id={view.map ?? "beach"} />
 
       <header className="hud">
@@ -205,7 +208,7 @@ export default function GamePage() {
           </div>
         </div>
         <div className="hud-right">
-          {view.phase !== "finished" && <>
+          {view.phase !== "finished" && game.fxEnabled && <>
             <button className="round-btn mobile-only" onClick={() => setPanel(panel === "sounds" ? null : "sounds")} aria-label="Sons">🎺</button>
             <button className="round-btn mobile-only" onClick={() => setPanel(panel === "phrases" ? null : "phrases")} aria-label="Phrases">💬</button>
           </>}
@@ -270,7 +273,7 @@ export default function GamePage() {
       )}
 
       {/* soundboard : Sons / Phrases, utilisables à tout moment (même éliminé) */}
-      {view.phase !== "finished" && (
+      {view.phase !== "finished" && game.fxEnabled && (
         <div className={`fx-dock ${panel ? "open" : ""}`}>
           {panel && (
             <div className="panel fx-panel">
