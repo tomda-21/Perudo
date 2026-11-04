@@ -70,6 +70,32 @@ function voice(a: AudioContext, t: number, dest: AudioNode, f: number[], durs: n
 }
 
 const SYNTHS: Record<string, Synth> = {
+  klaxon: (a, t, d) => {
+    // « pouet pouet » de vieux klaxon
+    [0, 0.32].forEach((dt) => {
+      const o = a.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(330, t + dt); o.frequency.linearRampToValueAtTime(300, t + dt + 0.25);
+      const o2 = a.createOscillator(); o2.type = "square"; o2.frequency.value = 415;
+      const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400;
+      const g = a.createGain(); env(a, g, t + dt, 0.01, 0.2, 0.06, 0.25);
+      o.connect(lp); o2.connect(lp); lp.connect(g).connect(d);
+      [o, o2].forEach((x) => { x.start(t + dt); x.stop(t + dt + 0.3); });
+    });
+  },
+  tambour: (a, t, d) => {
+    // roulement de caisse claire puis coup de cymbale
+    for (let i = 0; i < 22; i++) {
+      const at = t + i * 0.055;
+      const n = a.createBufferSource(); n.buffer = noiseBuffer(a, 0.05);
+      const bp = a.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1800; bp.Q.value = 0.8;
+      const g = a.createGain(); env(a, g, at, 0.002, 0.01, 0.04, 0.25 + i * 0.02);
+      n.connect(bp).connect(g).connect(d); n.start(at);
+    }
+    const at = t + 1.25;
+    const n = a.createBufferSource(); n.buffer = noiseBuffer(a, 1.2);
+    const hp = a.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 5000;
+    const g = a.createGain(); env(a, g, at, 0.005, 0.1, 1, 0.6);
+    n.connect(hp).connect(g).connect(d); n.start(at);
+  },
   prout: fart(0.55, 95, 28),
   "gros-prout": (a, t, d) => { fart(0.5, 75, 22)(a, t, d); fart(0.9, 60, 16)(a, t + 0.45, d); },
   rot: (a, t, d) => {

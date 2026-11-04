@@ -4,22 +4,33 @@
 //  Toute écriture est enregistrée dans le journal d'audit.
 // =============================================================
 import { AdminError, requireAdmin } from "@/lib/admin";
-import { srv } from "@/lib/srv";
+import { srv, srv2, srv3 } from "@/lib/srv";
+import { hashPassword } from "@/lib/admin";
+import { EconomyError } from "@/lib/economy";
+import { playerPasswordProblem } from "@/lib/progression";
 import { refreshContent, Row, seedIfEmpty } from "@/lib/content-server";
 import {
-  cleanAppearance, cleanCup, cleanMap, cleanPhrase, cleanSettings, cleanSound, ContentError, slug, Status,
+  cleanAppearance, cleanChallenge, cleanCup, cleanEconomy, cleanFrame, cleanMap, cleanPhrase, cleanReaction, cleanSettings, cleanSound,
+  cleanVictory, ContentError, slug, Status,
 } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
-const CLEAN = { phrase: cleanPhrase, sound: cleanSound, cup: cleanCup, map: cleanMap } as const;
+const CLEAN = {
+  phrase: cleanPhrase, sound: cleanSound, cup: cleanCup, map: cleanMap,
+  reaction: cleanReaction, frame: cleanFrame, victory: cleanVictory, challenge: cleanChallenge,
+} as const;
+type SettingKey = "game" | "appearance" | "economy";
+const settingKey = (k: unknown): SettingKey | null => (k === "game" || k === "appearance" || k === "economy" ? k : null);
+const cleanSetting = (k: SettingKey, d: Record<string, unknown>) =>
+  k === "game" ? cleanSettings(d) : k === "appearance" ? cleanAppearance(d) : cleanEconomy(d);
 type Kind = keyof typeof CLEAN;
 const isKind = (k: unknown): k is Kind => typeof k === "string" && k in CLEAN;
 const STATUSES: Status[] = ["draft", "published", "disabled"];
 
 function fail(e: unknown) {
   if (e instanceof AdminError) return Response.json({ error: e.message }, { status: e.status });
-  if (e instanceof ContentError) return Response.json({ error: e.message }, { status: 400 });
+  if (e instanceof ContentError || e instanceof EconomyError) return Response.json({ error: e.message }, { status: 400 });
   console.error(e);
   return Response.json({ error: "Erreur serveur" }, { status: 500 });
 }
@@ -76,8 +87,9 @@ async function run(op: string, b: Record<string, unknown>, actor: string) {
       const h = await srv<{ kind: string; id: string; data: Record<string, unknown>; status: Status; sort: number } | null>("history_get", { hid: Number(b.hid) });
       if (!h) throw new ContentError("Version introuvable");
       if (h.kind === "settings") {
-        const draft = h.id === "game" ? cleanSettings(h.data) : cleanAppearance(h.data);
-        await srv("settings_put", { key: h.id, draft, publish: true, actor });
+        const key = settingKey(h.id);
+        if (!key) throw new ContentError("Réglage inconnu");
+        await srv("settings_put", { key, draft: cleanSetting(key, h.data), publish: true, actor });
       } else if (isKind(h.kind)) {
         await srv("content_put", { kind: h.kind, id: h.id, data: CLEAN[h.kind](h.data), sort: h.sort ?? 0, status: h.status ?? "draft", actor });
       }
@@ -89,16 +101,16 @@ async function run(op: string, b: Record<string, unknown>, actor: string) {
       return srv("settings_get");
 
     case "settings_save": {
-      const key = b.key === "game" ? "game" : b.key === "appearance" ? "appearance" : null;
+      const key = settingKey(b.key);
       if (!key) throw new ContentError("Réglage inconnu");
-      const draft = key === "game" ? cleanSettings((b.draft ?? {}) as Record<string, unknown>) : cleanAppearance((b.draft ?? {}) as Record<string, unknown>);
+      const draft = cleanSetting(key, (b.draft ?? {}) as Record<string, unknown>);
       await srv("settings_put", { key, draft, publish: b.publish === true, actor });
       refreshContent();
       return { ok: true, draft };
     }
 
     case "settings_history":
-      return srv("content_history", { kind: "settings", id: b.key === "game" ? "game" : "appearance" });
+      return srv("content_history", { kind: "settings", id: settingKey(b.key) ?? "game" });
 
     case "players_search":
       return srv("players_search", { q: String(b.q ?? "").slice(0, 40) });
@@ -117,6 +129,44 @@ async function run(op: string, b: Record<string, unknown>, actor: string) {
 
     case "audit":
       return srv("audit_list");
+
+    // ---------- économie ----------
+    case "econ_stats":
+      return srv2("econ_stats");
+
+    case "player_wallet": {
+      const id = String(b.id);
+      const [account, wallet] = await Promise.all([srv2("acct_get", { profile_id: id }), srv2("wallet", { profile_id: id })]);
+      return { account, wallet };
+    }
+
+    case "player_grant": {
+      // ajustement manuel (compensation, correction) : toujours tracé
+      const reason = String(b.reason ?? "").trim().slice(0, 200);
+      if (!reason) throw new ContentError("Indique la raison de l'ajustement");
+      if (b.confirm !== true) throw new ContentError("Confirmation manquante");
+      const doblons = Math.round(Number(b.doblons) || 0), fragments = Math.round(Number(b.fragments) || 0);
+      if (Math.abs(doblons) > 100000 || Math.abs(fragments) > 100) throw new ContentError("Montant trop grand");
+      if (!doblons && !fragments) throw new ContentError("Rien à ajuster");
+      const id = String(b.id);
+      if (!(await srv2("acct_get", { profile_id: id }))) throw new ContentError("Ce joueur n'a pas de compte");
+      try {
+        await srv2("grant", { profile_id: id, event_id: `admin:${Date.now()}:${actor}`, kind: "admin", doblons, fragments, detail: { reason, by: actor } });
+      } catch { throw new ContentError("Le solde ne peut pas devenir négatif"); }
+      await srv3("audit_add", { actor, action: "economy.grant", target: id, detail: { doblons, fragments, reason } });
+      return { ok: true };
+    }
+
+    case "player_reset_password": {
+      const pw = String(b.password ?? "");
+      const p = playerPasswordProblem(pw);
+      if (p) throw new ContentError(p);
+      if (b.confirm !== true) throw new ContentError("Confirmation manquante");
+      const ok = await srv3<boolean>("acct_reset", { profile_id: String(b.id), pw_hash: hashPassword(pw) });
+      if (!ok) throw new ContentError("Ce joueur n'a pas de compte");
+      await srv3("audit_add", { actor, action: "account.reset_password", target: String(b.id), detail: null });
+      return { ok: true };
+    }
   }
   throw new ContentError("Opération inconnue");
 }
@@ -125,7 +175,7 @@ export async function GET(req: Request) {
   try {
     const admin = await requireAdmin(req);
     const op = new URL(req.url).searchParams.get("op") ?? "overview";
-    if (!["overview", "content_list", "settings_get", "audit"].includes(op)) throw new ContentError("Opération inconnue");
+    if (!["overview", "content_list", "settings_get", "audit", "econ_stats"].includes(op)) throw new ContentError("Opération inconnue");
     return Response.json(await run(op, {}, admin.id));
   } catch (e) { return fail(e); }
 }

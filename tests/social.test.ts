@@ -89,7 +89,7 @@ test("stats : comptées seulement avec 2 humains, et une seule fois", () => {
   const rows = takeResults(s);
   assert.equal(rows.length, 2);
   assert.equal(rows.filter((r) => r.won).length <= 1, true);
-  assert.equal(rows[0].game_id, "T:1");
+  assert.match(rows[0].game_id, /^T:[a-z0-9]+:1$/); // identifiant unique par partie
   assert.deepEqual(takeResults(s), []); // jamais deux fois
   restart(s, s.players.find((p) => p.isHost)!.id);
   assert.equal(s.gameNo, 2);

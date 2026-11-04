@@ -37,7 +37,7 @@ export function getProfileCreds(): ProfileCreds | null {
     return raw ? (JSON.parse(raw) as ProfileCreds) : null;
   } catch { return null; }
 }
-function saveProfileCreds(c: ProfileCreds) {
+export function saveProfileCreds(c: ProfileCreds) {
   try { localStorage.setItem("perudo:profile", JSON.stringify(c)); } catch {}
 }
 
@@ -47,7 +47,13 @@ export type MyProfile = {
   unlocked: string[];
   cups: import("./content").CupItem[];
   recent: { won: boolean; at: string; humans: number; rounds: number }[];
+  account: { login: string; since: string } | null;
 };
+
+export type Progress = import("./progression-types").Progress;
+export function forgetProfile() {
+  try { localStorage.removeItem("perudo:profile"); } catch {}
+}
 
 async function call<T>(url: string, init: RequestInit & { token?: string; profile?: boolean } = {}): Promise<T> {
   const prof = init.profile ? getProfileCreds() : null;
@@ -81,6 +87,13 @@ export const api = {
   },
   updateProfile: (patch: Record<string, unknown>) =>
     call<MyProfile>("/api/profile", { method: "PATCH", profile: true, body: JSON.stringify(patch) }),
+  progress: () => call<Progress>("/api/progress", { profile: true }),
+  progressAction: <T = unknown>(body: Record<string, unknown>) =>
+    call<{ result: T; progress: Progress }>("/api/progress", { method: "POST", profile: true, body: JSON.stringify(body) }),
+  createAccount: (login: string, password: string) =>
+    call<{ ok: true }>("/api/account", { method: "POST", profile: true, body: JSON.stringify({ op: "create", login, password }) }),
+  login: (login: string, password: string) =>
+    call<ProfileCreds>("/api/account", { method: "POST", body: JSON.stringify({ op: "login", login, password }) }),
   state: (code: string, token?: string) => call<PlayerView>(`/api/games/${code}`, { token }),
   action: (code: string, token: string, body: Record<string, unknown>) =>
     call<PlayerView>(`/api/games/${code}/action`, { method: "POST", token, body: JSON.stringify(body) }),

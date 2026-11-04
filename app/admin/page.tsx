@@ -11,11 +11,14 @@ import Scene from "@/components/Scene";
 import Logo from "@/components/Logo";
 import { api, getProfileCreds } from "@/lib/client";
 import ContentAdmin from "@/components/admin/ContentAdmin";
+import EconomyAdmin from "@/components/admin/EconomyAdmin";
 import { AppearanceAdmin, AuditAdmin, Dashboard, PlayersAdmin, SettingsAdmin } from "@/components/admin/OtherAdmin";
 
 const TABS = [
   ["dash", "📊", "Tableau de bord"], ["phrase", "💬", "Phrases cultes"], ["sound", "🔊", "Bruitages"],
-  ["cup", "🥤", "Gobelets"], ["map", "🗺️", "Maps"], ["look", "🎨", "Apparence"], ["game", "⚙️", "Paramètres du jeu"],
+  ["cup", "🥤", "Gobelets"], ["map", "🗺️", "Maps"],
+  ["economy", "🪙", "Économie et roue"], ["challenge", "🎯", "Défis"], ["reaction", "😂", "Réactions"], ["frame", "🖼️", "Cadres de profil"], ["victory", "🎆", "Animations de victoire"],
+  ["look", "🎨", "Apparence"], ["game", "⚙️", "Paramètres du jeu"],
   ["players", "👥", "Joueurs"], ["audit", "📜", "Journal"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -54,7 +57,8 @@ export default function AdminPage() {
         <section className="panel admin-main">
           <div className="panel-title"><span>{TABS.find((t) => t[0] === tab)![2]}</span></div>
           {tab === "dash" && <Dashboard />}
-          {(tab === "phrase" || tab === "sound" || tab === "cup" || tab === "map") && <ContentAdmin kind={tab} />}
+          {(["phrase", "sound", "cup", "map", "reaction", "frame", "victory", "challenge"] as const).map((k) => tab === k && <ContentAdmin key={k} kind={k} />)}
+          {tab === "economy" && <EconomyAdmin />}
           {tab === "look" && <AppearanceAdmin />}
           {tab === "game" && <SettingsAdmin />}
           {tab === "players" && <PlayersAdmin />}

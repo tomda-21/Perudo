@@ -2,7 +2,8 @@
 import { randomBytes, randomUUID } from "crypto";
 import { addPlayer, RuleError } from "@/lib/rules";
 import { mutate } from "@/lib/store";
-import { authProfile, isBlocked, publicAvatar } from "@/lib/profiles";
+import { authProfile, isBlocked } from "@/lib/profiles";
+import { playerExtra } from "@/lib/progression";
 import { cleanCode, handle, json } from "@/lib/api";
 
 export async function POST(req: Request, { params }: { params: Promise<{ code: string }> }) {
@@ -11,7 +12,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const { name } = await req.json();
     const prof = await authProfile(req.headers.get("x-profile-id"), req.headers.get("x-profile-key"));
     if (prof && (await isBlocked(prof.id))) return json({ error: "Ce compte a été bloqué" }, 403);
-    const extra = prof ? { profileId: prof.id, avatar: publicAvatar(prof), cup: prof.cup } : {};
+    const extra = await playerExtra(prof);
     const playerId = randomUUID();
     const token = randomBytes(24).toString("hex");
     await mutate(code, (s) => {

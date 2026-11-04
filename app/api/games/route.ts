@@ -2,7 +2,8 @@
 import { randomBytes, randomInt, randomUUID } from "crypto";
 import { addPlayer, newGame } from "@/lib/rules";
 import { createGame } from "@/lib/store";
-import { authProfile, isBlocked, publicAvatar } from "@/lib/profiles";
+import { authProfile, isBlocked } from "@/lib/profiles";
+import { playerExtra } from "@/lib/progression";
 import { publicContent } from "@/lib/content-server";
 import { handle, json, mapPool } from "@/lib/api";
 
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
     // règles figées pour toute la durée du salon (un changement admin ne touche pas les parties en cours)
     const config = { startDice: content.settings.startDice, exactEnabled: content.settings.exactEnabled, palificoEnabled: content.settings.palificoEnabled };
     const pool = mapPool(content);
-    const extra = prof ? { profileId: prof.id, avatar: publicAvatar(prof), cup: prof.cup } : {};
+    const extra = await playerExtra(prof);
     for (let i = 0; i < 10; i++) {
       const state = newGame(makeCode(), typeof map === "string" ? map : undefined, { config, pool });
       const playerId = randomUUID();

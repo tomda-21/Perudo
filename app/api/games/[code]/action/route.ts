@@ -6,6 +6,7 @@ import {
 } from "@/lib/rules";
 import { mutate } from "@/lib/store";
 import { addResults } from "@/lib/profiles";
+import { rewardGame } from "@/lib/progression";
 import { cleanCode, handle, json, mapPool, playerFromToken } from "@/lib/api";
 import { publicContent } from "@/lib/content-server";
 
@@ -43,6 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       rows = takeResults(s); // partie terminée → résultats (une seule fois)
     });
     await addResults(rows);
+    await rewardGame(rows); // Doblons, XP, défis (comptes uniquement, une seule fois par partie)
     return json(viewFor(state, meId));
   } catch (e) {
     return handle(e);

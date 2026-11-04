@@ -9,6 +9,8 @@ import { AVATARS, condLabel, condProgress } from "@/lib/catalog";
 import { useSettings } from "@/lib/settings";
 import { playSound } from "@/lib/sfx";
 import { unlockAudio } from "@/lib/sound";
+import { AccountBox, Coins, HistoryList, LevelCard, ProgressState } from "./Progress";
+import type { CupItem } from "@/lib/content";
 
 /** Charge (ou crée) le profil de cet appareil. */
 export function useMyProfile() {
@@ -44,7 +46,7 @@ async function shrinkPhoto(file: File): Promise<string> {
 }
 
 // ---------- MON PROFIL ----------
-export function ProfileModal({ onClose, profile }: { onClose: () => void; profile: ReturnType<typeof useMyProfile> }) {
+export function ProfileModal({ onClose, profile, prog }: { onClose: () => void; profile: ReturnType<typeof useMyProfile>; prog: ProgressState }) {
   const { data, setData, error } = profile;
   const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => { fetch("/api/admin/login", { cache: "no-store" }).then((r) => r.json()).then((r) => setIsAdmin(!!r.admin)).catch(() => {}); }, []);
@@ -104,6 +106,9 @@ export function ProfileModal({ onClose, profile }: { onClose: () => void; profil
           )}
           {msg && <p className="hint">{msg}</p>}
 
+          <AccountBox account={data.account} onChange={() => { api.myProfile().then(setData).catch(() => {}); prog.reload(); }} />
+          <LevelCard prog={prog} />
+
           {isAdmin && <a href="/admin" className="gbtn gbtn-purple gbtn-sm admin-entry">🛠 Ouvrir Perudo Admin</a>}
 
           <div className="section-title">Statistiques</div>
@@ -117,6 +122,11 @@ export function ProfileModal({ onClose, profile }: { onClose: () => void; profil
             <Stat icon="🤥" value={data.stats.liarWins} label="« Menteur ! » réussis" />
             <Stat icon="🎯" value={data.stats.exactWins} label="« Exact ! » réussis" />
             <Stat icon="🔥" value={data.stats.bestWinStreak} label="Meilleure série" />
+          </div>
+          <div className="stat-grid stat-grid-sm">
+            <Stat icon="🐦‍🔥" value={data.stats.phoenix ?? 0} label="Victoires après 1 dé" />
+            <Stat icon="🛡️" value={data.stats.flawless ?? 0} label="Victoires sans perte" />
+            <Stat icon="🗣️" value={data.stats.bids ?? 0} label="Annonces" />
           </div>
 
           <div className="section-title">Dernières parties</div>
@@ -133,6 +143,7 @@ export function ProfileModal({ onClose, profile }: { onClose: () => void; profil
               ))}
             </ul>
           )}
+          <HistoryList prog={prog} />
         </div>
       )}
     </Modal>
@@ -149,45 +160,81 @@ function Stat({ icon, value, label }: { icon: string; value: number | string; la
 }
 
 // ---------- MES GOBELETS ----------
-export function CupsModal({ onClose, profile }: { onClose: () => void; profile: ReturnType<typeof useMyProfile> }) {
+type CupTab = "exploit" | "mystery" | "shop";
+export function CupsModal({ onClose, profile, prog, openShop }: { onClose: () => void; profile: ReturnType<typeof useMyProfile>; prog: ProgressState; openShop?: () => void }) {
   const { data, setData, error } = profile;
   const [msg, setMsg] = useState("");
+  const [tab, setTab] = useState<CupTab>("exploit");
+  const [busy, setBusy] = useState(false);
+  const p = prog.data;
+  const member = !!data?.account;
   async function equip(id: string) {
     setMsg("");
     try { setData(await api.updateProfile({ cup: id })); } catch (e) { setMsg((e as Error).message); }
   }
+  async function exchange() {
+    setBusy(true); setMsg("");
+    try {
+      const r = await api.progressAction<{ cup: string | null; doblons: number }>({ op: "exchange" });
+      prog.setData(r.progress);
+      setData(await api.myProfile());
+      setMsg(r.result.cup ? `🎁 Nouveau gobelet : ${r.result.cup} !` : `Tu as déjà tous les mystères : +${r.result.doblons} Doblons.`);
+    } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+  }
+  const cat = (c: CupItem) => c.category ?? "exploit";
+  const list = (data?.cups ?? []).filter((c) => cat(c) === tab);
+  const need = p?.economy.fragments.needed ?? 6;
   return (
     <Modal title="Mes gobelets" onClose={onClose} wide>
       {!data ? <p className="muted">{error || "Chargement…"}</p> : (
         <>
-          <div className="cup-grid">
-            {(data.cups ?? []).map((c) => {
-              const unlocked = data.unlocked.includes(c.id);
-              const equipped = data.profile.cup === c.id;
-              const p = condProgress(c.cond, data.stats);
-              return (
-                <div key={c.id} className={`cup-card ${equipped ? "equipped" : ""} ${unlocked ? "" : "locked"}`}>
-                  <div className="cup-stage"><Cup state="show" size="xl" skin={c.id} /></div>
-                  {!unlocked && <span className="lock" aria-label="Verrouillé">🔒</span>}
-                  {equipped && <span className="check" aria-label="Équipé">✓</span>}
-                  <div className="cup-name">{c.name}</div>
-                  {c.rarity && c.rarity !== "commun" && <div className={`rarity rarity-${c.rarity === "épique" ? "epic" : c.rarity === "légendaire" ? "legend" : "rare"}`}>{c.rarity}</div>}
-                  {c.description && <div className="cup-desc">{c.description}</div>}
-                  {equipped ? <div className="pill pill-green">Équipé</div>
-                    : unlocked ? <button className="pill pill-btn" onClick={() => equip(c.id)}>Équiper</button>
-                    : <div className="pill">{condLabel(c.cond)}</div>}
-                  {!unlocked && (
-                    <div className="progress" title={`${p.have} / ${p.need}`}>
-                      <span style={{ width: `${(p.have / p.need) * 100}%` }} />
-                      <em>{p.have}/{p.need}</em>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <div className="tabs">
+            <button className={tab === "exploit" ? "on" : ""} onClick={() => setTab("exploit")}>🏅 Exploits</button>
+            <button className={tab === "mystery" ? "on" : ""} onClick={() => setTab("mystery")}>🎁 Mystères</button>
+            <button className={tab === "shop" ? "on" : ""} onClick={() => setTab("shop")}>🛒 Boutique</button>
           </div>
-          {msg && <p className="hint">{msg}</p>}
-          <p className="muted small center-text">Les gobelets sont purement décoratifs : ils ne changent jamais les dés. Seules les parties avec au moins 2 vrais joueurs font progresser.</p>
+          {!member && <p className="guest-note">👤 En invité, seul le gobelet Classique est disponible. Crée un compte dans <b>Mon profil</b> : tes parties déjà jouées comptent tout de suite pour les exploits.</p>}
+          {tab === "mystery" && member && p?.member && (
+            <div className="frag-box">
+              <span>🧩 Fragments : <b>{p.fragments} / {need}</b></span>
+              <div className="progress"><span style={{ width: `${Math.min(100, (p.fragments / need) * 100)}%` }} /></div>
+              <button className="gbtn gbtn-purple gbtn-sm" disabled={busy || p.fragments < need} onClick={exchange}>Échanger {need} fragments</button>
+              <span className="muted small">Donne un gobelet mystère que tu n&apos;as pas encore, au hasard. Fragments : roue et défis hebdo.</span>
+            </div>
+          )}
+          {tab === "shop" && openShop && list.length === 0 && <p className="center-text"><button className="gbtn gbtn-gold gbtn-sm" onClick={openShop}>Ouvrir la boutique</button></p>}
+          {list.length === 0 ? <p className="muted center-text">Aucun gobelet dans cette catégorie pour l&apos;instant.</p> : (
+            <div className="cup-grid">
+              {list.map((c) => {
+                const unlocked = data.unlocked.includes(c.id);
+                const equipped = data.profile.cup === c.id;
+                const pr = condProgress(c.cond, data.stats);
+                return (
+                  <div key={c.id} className={`cup-card ${equipped ? "equipped" : ""} ${unlocked ? "" : "locked"} ${tab === "mystery" && !unlocked ? "mystery" : ""}`}>
+                    <div className={`cup-stage ${c.fx && c.fx !== "none" && unlocked ? `cupfx-${c.fx}` : ""}`}><Cup state="show" size="xl" skin={c.id} /></div>
+                    {!unlocked && <span className="lock" aria-label="Verrouillé">{tab === "mystery" ? "❓" : "🔒"}</span>}
+                    {equipped && <span className="check" aria-label="Équipé">✓</span>}
+                    <div className="cup-name">{c.name}</div>
+                    {c.rarity && c.rarity !== "commun" && <div className={`rarity rarity-${c.rarity === "épique" ? "epic" : c.rarity === "légendaire" ? "legend" : "rare"}`}>{c.rarity}</div>}
+                    {c.description && <div className="cup-desc">{c.description}</div>}
+                    {equipped ? <div className="pill pill-green">Équipé</div>
+                      : unlocked ? <button className="pill pill-btn" onClick={() => equip(c.id)}>Équiper</button>
+                      : tab === "shop" ? <button className="pill pill-btn" onClick={openShop}>🪙 {c.price}</button>
+                      : <div className="pill">{tab === "mystery" ? "Roue ou fragments" : condLabel(c.cond)}</div>}
+                    {!unlocked && tab === "exploit" && member && (
+                      <div className="progress" title={`${pr.have} / ${pr.need}`}>
+                        <span style={{ width: `${(pr.have / pr.need) * 100}%` }} />
+                        <em>{pr.have}/{pr.need}</em>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {msg && <p className="hint center-text">{msg}</p>}
+          {p?.member && <p className="center-text"><Coins n={p.doblons} frag={p.fragments} /></p>}
+          <p className="muted small center-text">Les gobelets sont purement décoratifs : ils ne changent jamais les dés. Seules les parties avec au moins 2 vrais joueurs font progresser les exploits.</p>
         </>
       )}
     </Modal>

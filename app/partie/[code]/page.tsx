@@ -10,12 +10,12 @@ import Link from "next/link";
 import Die from "@/components/Die";
 import Table from "@/components/Table";
 import Scene from "@/components/Scene";
-import Confetti from "@/components/Confetti";
+import Victory from "@/components/Victory";
 import Avatar from "@/components/Avatar";
 import { Modal } from "@/components/Panel";
 import { SettingsModal } from "@/components/Menus";
 import { ControlBar, Lobby } from "@/components/GameControls";
-import { api, getSession, lastName, realtime, rememberName, saveSession, Session } from "@/lib/client";
+import { api, getSession, lastName, Progress, realtime, rememberName, saveSession, Session } from "@/lib/client";
 import { sounds, unlockAudio } from "@/lib/sound";
 import { useSettings } from "@/lib/settings";
 import { useFx } from "@/lib/fx";
@@ -38,10 +38,15 @@ export default function GamePage() {
   const [present, setPresent] = useState<Set<string> | null>(null);
   const [shaking, setShaking] = useState(false);
   const [peek, setPeek] = useState(false);
-  const [panel, setPanel] = useState<null | "sounds" | "phrases">(null);
+  const [panel, setPanel] = useState<null | "sounds" | "phrases" | "reactions">(null);
+  const [prog, setProg] = useState<Progress | null>(null);
+  const [gain, setGain] = useState<{ doblons: number; xp: number } | null>(null);
   const [dialog, setDialog] = useState<null | "quit" | "settings">(null);
   const [settings, setSettings] = useSettings();
-  const { maps: MAPS, sounds: SOUNDS, phrases: PHRASES, settings: game } = useContent();
+  const { maps: MAPS, sounds: SOUNDS, phrases: PHRASES, reactions: REACTIONS, victories: VICTORIES, settings: game } = useContent();
+  // ma progression : objets possédés pour le soundboard, gains de fin de partie
+  useEffect(() => { api.progress().then(setProg).catch(() => {}); }, []);
+  const owned = (kind: "phrase" | "sound" | "reaction", id: string, price?: number) => !price || (prog?.member ? prog.owned[kind].includes(id) : false);
 
   useEffect(() => {
     const u = () => unlockAudio();
@@ -86,7 +91,20 @@ export default function GamePage() {
     return () => { realtime().removeChannel(ch); };
   }, [code, myId]);
 
-  const { fx, send, cooldownUntil } = useFx(code, myId);
+  const { fx, send, cooldownUntil } = useFx(code, myId, view?.players ?? []);
+
+  // fin de partie : on va chercher ce que le serveur a crédité (rien n'est calculé ici)
+  const finishedKey = view?.phase === "finished" ? `${view.gameNo ?? 1}` : null;
+  useEffect(() => {
+    if (!finishedKey || !prog?.member) { setGain(null); return; }
+    const before = prog;
+    const t = setTimeout(() => api.progress().then((p) => {
+      if (p.member) setGain({ doblons: p.doblons - before.doblons, xp: p.xp - before.xp });
+      setProg(p);
+    }).catch(() => {}), 1800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishedKey]);
 
   async function act(body: Record<string, unknown>) {
     if (!session) return null;
@@ -211,6 +229,7 @@ export default function GamePage() {
           {view.phase !== "finished" && game.fxEnabled && <>
             <button className="round-btn mobile-only" onClick={() => setPanel(panel === "sounds" ? null : "sounds")} aria-label="Sons">🎺</button>
             <button className="round-btn mobile-only" onClick={() => setPanel(panel === "phrases" ? null : "phrases")} aria-label="Phrases">💬</button>
+            <button className="round-btn mobile-only" onClick={() => setPanel(panel === "reactions" ? null : "reactions")} aria-label="Réactions">😂</button>
           </>}
           <button className="round-btn desktop-only" onClick={() => setSettings({ gameSounds: !settings.gameSounds, soundboard: !settings.gameSounds })}
             aria-label={settings.gameSounds ? "Couper le son" : "Activer le son"} title={settings.gameSounds ? "Couper le son" : "Activer le son"}>
@@ -250,12 +269,17 @@ export default function GamePage() {
 
       {view.phase === "finished" && (
         <>
-          {!view.abandoned && <Confetti />}
+          {!view.abandoned && <Victory style={VICTORIES.find((v) => v.id === view.players.find((p) => p.id === view.winnerId)?.victory)?.style ?? "confetti"} />}
           <div className="victory">
             <div className="panel victory-card">
               <div className="trophy">{view.abandoned ? "🏳️" : "🏆"}</div>
               {view.winnerId && <div className="victory-avatar"><Avatar name={name(view.winnerId)} avatar={view.players.find((p) => p.id === view.winnerId)?.avatar} size={96} /></div>}
               <h2>{view.abandoned ? "Partie arrêtée" : view.winnerId === me.id ? "Tu as gagné !" : `${name(view.winnerId)} gagne la partie !`}</h2>
+              {!view.abandoned && (prog?.member
+                ? gain && (gain.doblons > 0 || gain.xp > 0)
+                  ? <div className="gain-row"><span className="coin-pill">🪙 +{gain.doblons}</span><span className="xp-pill">✨ +{gain.xp} XP</span></div>
+                  : gain && <p className="muted small">Partie non officielle : pas de Doblons (il faut au moins {prog.economy.official.minHumans} vrais joueurs, {prog.economy.official.minRounds} manches{prog.economy.official.allowBots ? "" : ", sans bot"}).</p>
+                : prog && <p className="muted small">💡 Crée un compte (Mon profil) pour gagner des Doblons et de l&apos;XP à chaque partie.</p>)}
               <ul className="final-ranks">
                 {[...view.players].sort((a, b) => (b.id === view.winnerId ? 1 : 0) - (a.id === view.winnerId ? 1 : 0) || b.diceCount - a.diceCount).map((p) => (
                   <li key={p.id}><Avatar name={p.name} avatar={p.avatar} size={26} /> {p.name}{p.left ? " (parti)" : ""}{p.id === view.winnerId ? " 🏆" : ""}</li>
@@ -281,11 +305,14 @@ export default function GamePage() {
               <div className="tabs">
                 <button className={panel === "sounds" ? "on" : ""} onClick={() => setPanel("sounds")}>🔊 Sons</button>
                 <button className={panel === "phrases" ? "on" : ""} onClick={() => setPanel("phrases")}>💬 Phrases</button>
+                <button className={panel === "reactions" ? "on" : ""} onClick={() => setPanel("reactions")}>😂 Réactions</button>
               </div>
               <div className={`fx-grid ${panel === "phrases" ? "phrases" : ""}`}>
-                {(panel === "sounds" ? SOUNDS.map((s) => ({ id: s.id, label: s.label, icon: s.icon })) : PHRASES.map((p) => ({ id: p.id, label: p.text, icon: "💬" }))).map((x) => (
+                {(panel === "sounds" ? SOUNDS.filter((s) => owned("sound", s.id, s.price)).map((s) => ({ id: s.id, label: s.label, icon: s.icon }))
+                  : panel === "reactions" ? REACTIONS.filter((r) => owned("reaction", r.id, r.price)).map((r) => ({ id: r.id, label: r.label, icon: r.emoji }))
+                  : PHRASES.filter((p) => owned("phrase", p.id, p.price)).map((p) => ({ id: p.id, label: p.text, icon: "💬" }))).map((x) => (
                   <button key={x.id} className="fx-btn" disabled={Date.now() < cooldownUntil}
-                    onClick={() => { unlockAudio(); send(panel === "sounds" ? "sound" : "phrase", x.id); }}>
+                    onClick={() => { unlockAudio(); send(panel === "sounds" ? "sound" : panel === "reactions" ? "reaction" : "phrase", x.id); }}>
                     <span>{x.icon}</span> {x.label}
                   </button>
                 ))}
@@ -296,6 +323,7 @@ export default function GamePage() {
           <div className="fx-toggles">
             <button className={`gbtn gbtn-dark gbtn-sm ${panel === "sounds" ? "on" : ""}`} onClick={() => setPanel(panel === "sounds" ? null : "sounds")}>🔊 Sons</button>
             <button className={`gbtn gbtn-dark gbtn-sm ${panel === "phrases" ? "on" : ""}`} onClick={() => setPanel(panel === "phrases" ? null : "phrases")}>💬 Phrases</button>
+            <button className={`gbtn gbtn-dark gbtn-sm ${panel === "reactions" ? "on" : ""}`} onClick={() => setPanel(panel === "reactions" ? null : "reactions")}>😂 Réactions</button>
           </div>
         </div>
       )}

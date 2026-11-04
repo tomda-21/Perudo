@@ -9,7 +9,7 @@ import Avatar from "./Avatar";
 import type { PlayerView, PublicPlayer } from "@/lib/rules";
 import { useContent } from "@/lib/content-client";
 
-export type SeatFx = { kind: "sound" | "phrase"; id: string; key: number };
+export type SeatFx = { kind: "sound" | "phrase" | "reaction"; id: string; key: number };
 
 type Props = {
   view: PlayerView;
@@ -35,7 +35,7 @@ const FX_EMOJI: Record<string, string[]> = {
 };
 
 export default function Table({ view, myId, present, shaking, peek, fx, onCupClick }: Props) {
-  const { sounds: SOUNDS, phrases: PHRASES } = useContent();
+  const { sounds: SOUNDS, phrases: PHRASES, reactions: REACTIONS, frames: FRAMES } = useContent();
   const seats = [...view.players].sort((a, b) => a.seat - b.seat);
   const meIdx = Math.max(0, seats.findIndex((p) => p.id === myId));
   const ordered = [...seats.slice(meIdx), ...seats.slice(0, meIdx)];
@@ -73,6 +73,7 @@ export default function Table({ view, myId, present, shaking, peek, fx, onCupCli
         const f = fx[p.id];
         const sound = f?.kind === "sound" ? SOUNDS.find((s) => s.id === f.id) : undefined;
         const phrase = f?.kind === "phrase" ? PHRASES.find((s) => s.id === f.id) : undefined;
+        const reaction = f?.kind === "reaction" ? REACTIONS.find((s) => s.id === f.id) : undefined;
         const top = pos[i].top < 50;
         return (
           <div
@@ -94,8 +95,9 @@ export default function Table({ view, myId, present, shaking, peek, fx, onCupCli
               </div>
             )}
 
-            <div className={`seat-portrait ${sound ? `fx-${sound.anim}` : ""}`} key={sound ? `s${f!.key}` : "idle"}>
+            <div className={`seat-portrait ${sound ? `fx-${sound.anim}` : ""} ${p.frame ? `frame frame-${FRAMES.find((x) => x.id === p.frame)?.style ?? p.frame}` : ""}`} key={sound ? `s${f!.key}` : "idle"}>
               <Avatar name={p.name} avatar={p.avatar} />
+              {reaction && <span key={f!.key} className="reaction-pop" aria-label={reaction.label}>{reaction.emoji}</span>}
               {p.isHost && <span className="seat-crown" title="Hôte">♛</span>}
               {p.isBot && <span className="seat-bot">BOT</span>}
               {isLoser && <span className="float-delta float-minus">−1</span>}
@@ -112,7 +114,9 @@ export default function Table({ view, myId, present, shaking, peek, fx, onCupCli
               <div className="seat-name">
                 {!p.isBot && !p.left && <span className={`dot ${offline ? "dot-off" : ""}`} />}
                 {p.name}
+                {p.level ? <span className="seat-level" title="Niveau">{p.level}</span> : null}
               </div>
+              {p.title && <div className="seat-title">{p.title}</div>}
               {view.phase !== "lobby" && !out && !hand && <div className="seat-dice-count">🎲 {p.diceCount} dé{p.diceCount > 1 ? "s" : ""}</div>}
               <SeatStatus p={p} view={view} active={active} out={out} offline={offline} isMe={p.id === myId} />
             </div>

@@ -10,7 +10,7 @@ import { createHash, randomBytes, randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 import { AVATARS, isAvatarId, isUnlocked, Stats } from "./catalog";
 import { publicContent } from "./content-server";
-import { srv } from "./srv";
+import { srv, srv2 } from "./srv";
 import { RuleError, ResultRow } from "./rules";
 
 const sha = (x: string) => createHash("sha256").update(x).digest("hex");
@@ -41,8 +41,15 @@ async function putRow(r: Row) {
 export async function authProfile(id: string | null | undefined, key: string | null | undefined) {
   if (!id || !key) return null;
   const r = await getRow(id);
-  if (!r || r.key_sha256 !== sha(key)) return null;
-  return r;
+  if (!r) return null;
+  if (r.key_sha256 === sha(key)) return r;
+  // appareil connecté plus tard au même compte (clé propre à cet appareil)
+  const owner = await srv2<string | null>("device_check", { key_sha256: sha(key) });
+  return owner === r.id ? r : null;
+}
+
+export async function isMember(id: string) {
+  return !!(await srv2<unknown>("acct_get", { profile_id: id }));
 }
 
 /** Profil bloqué par l'admin ? (il ne peut plus créer ni rejoindre de partie) */
@@ -55,13 +62,28 @@ export async function isBlocked(id: string) {
  * Gobelets obtenus : ceux déjà gagnés (conservés pour toujours, même si
  * l'admin durcit une condition) + ceux que les stats actuelles débloquent.
  */
-async function unlockedCups(id: string, stats: Stats) {
-  const [cups, kept] = await Promise.all([publicContent().then((c) => c.cups), srv<string[]>("unlocks_get", { profile_id: id })]);
-  const now = cups.filter((c) => isUnlocked(c.cond, stats)).map((c) => c.id);
+export async function unlockedCups(id: string, stats: Stats, member: boolean) {
+  const [cups, kept, inv] = await Promise.all([
+    publicContent().then((c) => c.cups),
+    srv<string[]>("unlocks_get", { profile_id: id }),
+    member ? srv2<{ inventory: { type: string; id: string }[] }>("wallet", { profile_id: id }).then((w) => w.inventory) : Promise.resolve([]),
+  ]);
+  // exploits : seulement avec un compte (les invités n'ont pas de progression)
+  const now = member ? cups.filter((c) => (c.category ?? "exploit") === "exploit" && isUnlocked(c.cond, stats)).map((c) => c.id) : [];
   const fresh = now.filter((x) => !kept.includes(x));
   if (fresh.length) await srv("unlocks_add", { profile_id: id, ids: fresh });
-  const all = new Set([...kept, ...now]);
+  // mystères / boutique : uniquement ce qui est dans l'inventaire
+  const all = new Set(["classic", ...kept, ...now, ...inv.filter((i) => i.type === "cup").map((i) => i.id)]);
   return { cups, unlocked: cups.filter((c) => all.has(c.id)).map((c) => c.id) };
+}
+
+/** Stats + compteurs supplémentaires (Phénix, Invincible, annonces). */
+export async function fullStats(id: string, rows?: ResultDb[]) {
+  const [res, extra] = await Promise.all([
+    rows ? Promise.resolve(rows) : results(id),
+    srv2<{ extra: { phoenix: number; flawless: number; bids: number } }>("wallet", { profile_id: id }).then((w) => w.extra).catch(() => null),
+  ]);
+  return { ...computeStats(res), phoenix: Number(extra?.phoenix ?? 0), flawless: Number(extra?.flawless ?? 0), bids: Number(extra?.bids ?? 0) };
 }
 
 const cleanName = (n: unknown) => String(n ?? "").trim().slice(0, 20);
@@ -106,13 +128,14 @@ export function computeStats(rows: ResultDb[]): Stats {
 /** Ce que le joueur voit de son propre profil. */
 export async function profilePayload(r: Row) {
   const rows = await results(r.id);
-  const stats = computeStats(rows);
-  const { unlocked, cups } = await unlockedCups(r.id, stats);
+  const [stats, account] = await Promise.all([fullStats(r.id, rows), srv2<{ login: string; created_at: string } | null>("acct_get", { profile_id: r.id })]);
+  const { unlocked, cups } = await unlockedCups(r.id, stats, !!account);
   return {
     profile: {
       id: r.id, name: r.name, avatar: r.avatar, hasPhoto: !!r.photo, photoV: r.photo_v,
       cup: r.cup, since: r.created_at, publicAvatar: publicAvatar(r),
     },
+    account: account ? { login: account.login, since: account.created_at } : null,
     stats,
     unlocked,
     cups,
@@ -143,8 +166,8 @@ export async function updateProfile(r: Row, patch: Record<string, unknown>) {
   }
   if ("cup" in patch) {
     // le déblocage est vérifié ici, côté serveur, depuis les vrais résultats
-    const stats = computeStats(await results(r.id));
-    const { unlocked } = await unlockedCups(r.id, stats);
+    const stats = await fullStats(r.id);
+    const { unlocked } = await unlockedCups(r.id, stats, await isMember(r.id));
     if (!unlocked.includes(String(patch.cup))) throw new RuleError("Ce gobelet n'est pas encore débloqué");
     next.cup = String(patch.cup);
   }
@@ -159,6 +182,6 @@ export async function photoOf(id: string) {
 
 export async function addResults(rows: ResultRow[]) {
   if (!rows.length) return;
-  const { error } = await db().rpc("res_add", { p_secret: secret(), p_rows: rows });
+  const { error } = await db().rpc("res_add", { p_secret: secret(), p_rows: rows.map(({ extra, ...x }) => (void extra, x)) });
   if (error) console.error("res_add", error.message);
 }

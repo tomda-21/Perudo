@@ -23,7 +23,9 @@ export const isMapId = (x: unknown): x is MapId => MAPS.some((m) => m.id === x);
 // ---------- GOBELETS ----------
 // Conditions possibles : wins (victoires), played (parties terminées),
 // liarWins (« Menteur ! » réussis), winStreak (victoires d'affilée).
-export type CupCondition = { type: "none" } | { type: "wins" | "played" | "liarWins" | "winStreak"; n: number };
+export type CupCondition =
+  | { type: "none" | "special" }
+  | { type: "wins" | "played" | "liarWins" | "exactWins" | "winStreak" | "phoenix" | "flawless"; n: number };
 // `art` : passe à true quand l'illustration /public/art/cups/<id>.webp existe.
 export const CUPS: { id: string; name: string; cond: CupCondition; art: boolean }[] = [
   { id: "classic", name: "Classique", cond: { type: "none" }, art: false },
@@ -39,21 +41,27 @@ export type Stats = {
   played: number; wins: number; losses: number; rate: number;
   liarCalls: number; liarWins: number; exactCalls: number; exactWins: number;
   winStreak: number; bestWinStreak: number;
+  phoenix?: number; flawless?: number; bids?: number;
 };
 
 export function condProgress(c: CupCondition, s: Stats): { have: number; need: number } {
   if (c.type === "none") return { have: 1, need: 1 };
-  const have = c.type === "wins" ? s.wins : c.type === "played" ? s.played : c.type === "liarWins" ? s.liarWins : s.bestWinStreak;
-  return { have: Math.min(have, c.n), need: c.n };
+  if (c.type === "special") return { have: 0, need: 1 }; // roue, fragments ou boutique
+  const have = { wins: s.wins, played: s.played, liarWins: s.liarWins, exactWins: s.exactWins, winStreak: s.bestWinStreak, phoenix: s.phoenix ?? 0, flawless: s.flawless ?? 0 }[c.type];
+  const n = (c as { n: number }).n;
+  return { have: Math.min(have, n), need: n };
 }
 export const isUnlocked = (c: CupCondition, s: Stats) => {
   const p = condProgress(c, s);
   return p.have >= p.need;
 };
 export function condLabel(c: CupCondition) {
-  if (c.type === "none") return "Disponible";
-  const unit = { wins: "victoires", played: "parties", liarWins: "menteurs réussis", winStreak: "victoires d'affilée" }[c.type];
-  return `${c.n} ${unit}`;
+  if (c.type === "none") return "Offert";
+  if (c.type === "special") return "Roue, fragments ou boutique";
+  if (c.type === "phoenix") return c.n > 1 ? `Gagner ${c.n} fois après être tombé à 1 dé` : "Gagner après être tombé à 1 dé";
+  if (c.type === "flawless") return c.n > 1 ? `Gagner ${c.n} fois sans perdre un dé` : "Gagner sans perdre un seul dé";
+  const unit = { wins: "victoires", played: "parties terminées", liarWins: "« Menteur ! » réussis", exactWins: "« Exact ! » réussis", winStreak: "victoires d'affilée" }[c.type];
+  return `${(c as { n: number }).n} ${unit}`;
 }
 
 // ---------- AVATARS PAR DÉFAUT ----------

@@ -61,7 +61,7 @@ type SettingsResp = Record<string, { draft: unknown; published: unknown; updated
 type Hist = { hid: number; data: unknown; at: string };
 
 /** Brouillon / publication / historique d'un réglage. */
-function useSetting<T>(key: "game" | "appearance", def: T) {
+export function useSetting<T>(key: "game" | "appearance" | "economy", def: T) {
   const [draft, setDraft] = useState<T | null>(null);
   const [published, setPublished] = useState<T | null>(null);
   const [hist, setHist] = useState<Hist[]>([]);
@@ -86,7 +86,7 @@ function useSetting<T>(key: "game" | "appearance", def: T) {
   return { draft, setDraft, published, hist, msg, save, revert };
 }
 
-function Publisher({ save, msg, hist, revert }: { save: (p: boolean) => void; msg: string; hist: Hist[]; revert: (hid: number) => void }) {
+export function Publisher({ save, msg, hist, revert }: { save: (p: boolean) => void; msg: string; hist: Hist[]; revert: (hid: number) => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -243,6 +243,7 @@ export function PlayersAdmin() {
           </div>
           <ul className="a-mini">{open.results.slice(0, 15).map((r, i) => <li key={i}>{r.won ? "🏆 Victoire" : "💀 Défaite"} · {r.humans} joueurs · {r.rounds} manches <span className="muted small">{fmt(r.finished_at)}</span></li>)}</ul>
           <p className="a-hint">Les résultats des parties terminées ne sont pas modifiables : ils viennent uniquement du serveur de jeu.</p>
+          <PlayerEconomy id={open.profile.id} name={open.profile.name} />
           {open.profile.role !== "admin" && (
             <div className="row">
               {open.profile.blocked
@@ -287,6 +288,71 @@ export function AuditAdmin() {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+// ---------- portefeuille d'un joueur (dans la fiche joueur) ----------
+type WalletResp = {
+  account: { login: string; created_at: string } | null;
+  wallet: { wallet: { doblons: number; xp: number; fragments: number; last_spin: string | null; title: string | null }; inventory: { type: string; id: string; source: string; at: string }[];
+    ledger: { id: number; kind: string; doblons: number; xp: number; fragments: number; detail: Record<string, unknown> | null; at: string }[] };
+};
+function PlayerEconomy({ id, name }: { id: string; name: string }) {
+  const [w, setW] = useState<WalletResp | null>(null);
+  const [msg, setMsg] = useState("");
+  const [grant, setGrant] = useState(false);
+  const [reset, setReset] = useState(false);
+  const [f, setF] = useState({ doblons: 0, fragments: 0, reason: "", password: "" });
+  const load = () => adminApi<WalletResp>("player_wallet", { id }).then(setW).catch((e) => setMsg(e.message));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [id]);
+  if (!w) return <p className="muted">{msg || "Chargement du portefeuille…"}</p>;
+  if (!w.account) return <p className="a-note">Joueur invité (pas de compte) : pas de Doblons ni d&apos;XP.</p>;
+  const x = w.wallet.wallet;
+  return (
+    <div className="a-section">
+      <div className="section-title">Compte « {w.account.login} » — portefeuille</div>
+      <div className="stat-grid">
+        <div className="stat"><div className="stat-value">🪙 {x.doblons}</div><div className="stat-label">Doblons</div></div>
+        <div className="stat"><div className="stat-value">✨ {x.xp}</div><div className="stat-label">XP</div></div>
+        <div className="stat"><div className="stat-value">🧩 {x.fragments}</div><div className="stat-label">Fragments</div></div>
+        <div className="stat"><div className="stat-value">🎡</div><div className="stat-label">{x.last_spin ? `roue : ${fmt(x.last_spin)}` : "roue jamais tournée"}</div></div>
+      </div>
+      <p className="muted small">Inventaire : {w.wallet.inventory.length ? w.wallet.inventory.map((i) => `${i.type}:${i.id} (${i.source})`).join(", ") : "vide"}</p>
+      <ul className="a-mini">{w.wallet.ledger.slice(0, 15).map((l) => <li key={l.id}>{l.kind} · {l.doblons > 0 ? "+" : ""}{l.doblons} 🪙 {l.xp ? `· +${l.xp} XP` : ""} {l.fragments ? `· ${l.fragments} 🧩` : ""} <span className="muted small">{fmt(l.at)}</span></li>)}</ul>
+      <div className="row">
+        <button className="gbtn gbtn-purple gbtn-sm" onClick={() => setGrant(true)}>Ajuster le solde</button>
+        <button className="gbtn gbtn-dark gbtn-sm" onClick={() => setReset(true)}>Nouveau mot de passe</button>
+      </div>
+      {msg && <p className="hint">{msg}</p>}
+      {grant && (
+        <Confirm title={`Ajuster le solde de ${name}`} danger="Appliquer"
+          text={<div className="a-form">
+            <Field label="Doblons (négatif pour retirer)"><input type="number" value={f.doblons} onChange={(e) => setF({ ...f, doblons: Number(e.target.value) })} /></Field>
+            <Field label="Fragments (négatif pour retirer)"><input type="number" value={f.fragments} onChange={(e) => setF({ ...f, fragments: Number(e.target.value) })} /></Field>
+            <Field label="Raison (obligatoire, visible dans le journal)"><input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
+          </div>}
+          onNo={() => setGrant(false)}
+          onYes={async () => {
+            try { await adminApi("player_grant", { id, doblons: f.doblons, fragments: f.fragments, reason: f.reason, confirm: true }); setMsg("Ajustement appliqué ✓"); load(); }
+            catch (e) { setMsg((e as Error).message); }
+            setGrant(false);
+          }} />
+      )}
+      {reset && (
+        <Confirm title="Nouveau mot de passe" danger="Remplacer"
+          text={<div className="a-form">
+            <p>Pour un joueur qui a oublié son mot de passe. Ses autres appareils seront déconnectés. Transmets-lui le nouveau mot de passe en privé.</p>
+            <Field label="Nouveau mot de passe (8 caractères min.)"><input value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
+          </div>}
+          onNo={() => setReset(false)}
+          onYes={async () => {
+            try { await adminApi("player_reset_password", { id, password: f.password, confirm: true }); setMsg("Mot de passe remplacé ✓"); }
+            catch (e) { setMsg((e as Error).message); }
+            setReset(false); setF({ ...f, password: "" });
+          }} />
+      )}
     </div>
   );
 }

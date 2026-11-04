@@ -38,10 +38,12 @@ export type Player = {
   cup?: string; // gobelet équipé (purement cosmétique)
   left?: boolean; // a quitté la partie
   st?: PlayerStats; // exploits de la partie en cours
+  frame?: string | null; title?: string | null; victory?: string | null; level?: number | null; fxOwned?: string[] | null;
 };
 
-export type PlayerStats = { liarCalls: number; liarWins: number; exactCalls: number; exactWins: number };
-const freshStats = (): PlayerStats => ({ liarCalls: 0, liarWins: 0, exactCalls: 0, exactWins: 0 });
+// bids : annonces valides ; lost : dés perdus ; one : est tombé à 1 dé (pour le Phénix)
+export type PlayerStats = { liarCalls: number; liarWins: number; exactCalls: number; exactWins: number; bids?: number; lost?: number; one?: boolean };
+const freshStats = (): PlayerStats => ({ liarCalls: 0, liarWins: 0, exactCalls: 0, exactWins: 0, bids: 0, lost: 0, one: false });
 
 export type Reveal = {
   call: "liar" | "exact";
@@ -72,6 +74,7 @@ export type GameState = {
   winnerId: string | null;
   map?: string; // décor de la partie (cosmétique)
   config?: GameConfig; // règles figées à la création du salon
+  uid?: string;
   gameNo?: number; // numéro de la partie dans ce salon (rejouer = +1)
   recorded?: boolean; // résultats déjà enregistrés dans les stats ?
   abandoned?: boolean; // plus aucun humain : partie arrêtée, non comptée
@@ -124,6 +127,7 @@ export function newGame(code: string, map?: string, opts: { config?: GameConfig;
     map: map && pool.all.includes(map) ? map : pick(randomPool.length ? randomPool : DEFAULT_POOL.all),
     config: opts.config ?? DEFAULT_CONFIG,
     gameNo: 1,
+    uid: randomInt(0, 2 ** 40).toString(36), // identifiant unique (un code de salon peut resservir)
     recorded: false,
     phase: "lobby",
     round: 0,
@@ -140,7 +144,8 @@ export function newGame(code: string, map?: string, opts: { config?: GameConfig;
   };
 }
 
-export type PlayerExtra = { profileId?: string | null; avatar?: string | null; cup?: string };
+// cosmétiques : purement visuels, aucun effet sur le jeu
+export type PlayerExtra = { profileId?: string | null; avatar?: string | null; cup?: string; frame?: string | null; title?: string | null; victory?: string | null; level?: number | null; fxOwned?: string[] | null };
 
 export function addPlayer(s: GameState, id: string, name: string, token: string, extra: PlayerExtra = {}) {
   if (s.phase !== "lobby") throw new RuleError("La partie a déjà commencé");
@@ -162,6 +167,7 @@ export function addPlayer(s: GameState, id: string, name: string, token: string,
     profileId: extra.profileId ?? null,
     avatar: extra.avatar ?? null,
     cup: extra.cup ?? "classic",
+    frame: extra.frame ?? null, title: extra.title ?? null, victory: extra.victory ?? null, level: extra.level ?? null, fxOwned: extra.fxOwned ?? null,
     st: freshStats(),
   });
 }
@@ -222,6 +228,8 @@ export const countsForStats = (s: GameState) =>
 export type ResultRow = {
   game_id: string; profile_id: string; won: boolean; humans: number; rounds: number;
   liar_calls: number; liar_wins: number; exact_calls: number; exact_wins: number;
+  // pour les récompenses (non stockés dans la table des résultats)
+  extra: { bids: number; phoenix: boolean; flawless: boolean; left: boolean; bots: number };
 };
 
 /**
@@ -234,7 +242,7 @@ export function takeResults(s: GameState): ResultRow[] {
   if (!countsForStats(s)) return [];
   const humans = s.players.filter((p) => !p.isBot && p.profileId);
   return humans.map((p) => ({
-    game_id: `${s.code}:${s.gameNo ?? 1}`,
+    game_id: s.uid ? `${s.code}:${s.uid}:${s.gameNo ?? 1}` : `${s.code}:${s.gameNo ?? 1}`,
     profile_id: p.profileId!,
     won: s.winnerId === p.id,
     humans: humans.length,
@@ -243,6 +251,13 @@ export function takeResults(s: GameState): ResultRow[] {
     liar_wins: p.st?.liarWins ?? 0,
     exact_calls: p.st?.exactCalls ?? 0,
     exact_wins: p.st?.exactWins ?? 0,
+    extra: {
+      bids: p.st?.bids ?? 0,
+      phoenix: s.winnerId === p.id && !!p.st?.one,
+      flawless: s.winnerId === p.id && (p.st?.lost ?? 0) === 0,
+      left: !!p.left,
+      bots: s.players.filter((x) => x.isBot).length,
+    },
   }));
 }
 
@@ -340,12 +355,18 @@ export function placeBid(s: GameState, playerId: string, bid: Bid) {
   s.bid = { qty: bid.qty, face: bid.face };
   s.bidderId = playerId;
   s.history.push({ playerId, bid: s.bid });
+  const me = byId(s, playerId);
+  me.st ??= freshStats();
+  me.st.bids = (me.st.bids ?? 0) + 1;
   s.turnId = nextAliveAfter(s, playerId);
 }
 
 function loseDie(s: GameState, playerId: string) {
   const p = byId(s, playerId);
   p.diceCount -= 1;
+  p.st ??= freshStats();
+  p.st.lost = (p.st.lost ?? 0) + 1;
+  if (p.diceCount === 1) p.st.one = true;
   // Palifico : seulement la toute première fois que le joueur tombe à 1 dé
   if (p.diceCount === 1 && !p.palificoUsed && cfg(s).palificoEnabled) {
     p.palificoUsed = true;

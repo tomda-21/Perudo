@@ -14,7 +14,7 @@ export function loadContent(force = false) {
   loading = fetch("/api/content", { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((c: PublicContent | null) => {
-      if (c && Array.isArray(c.phrases)) { current = c; listeners.forEach((l) => l(c)); }
+      if (c && Array.isArray(c.phrases)) { current = { ...DEFAULT_CONTENT, ...c }; listeners.forEach((l) => l(current)); }
     })
     .catch(() => {});
   return loading;
