@@ -12,6 +12,7 @@
 
 import { randomBytes, randomInt, randomUUID } from "crypto";
 import { BOT_NAMES, decide } from "./bot";
+import { BOT_AVATARS, MAPS, MapId, isMapId } from "./catalog";
 
 export const MAX_DICE = 5;
 export const MIN_PLAYERS = 2;
@@ -32,7 +33,15 @@ export type Player = {
   palificoUsed: boolean;
   isHost: boolean;
   isBot: boolean; // joué automatiquement par le serveur
+  profileId?: string | null; // profil permanent (stats, gobelets)
+  avatar?: string | null; // avatar par défaut, ou "photo:<profil>:<version>"
+  cup?: string; // gobelet équipé (purement cosmétique)
+  left?: boolean; // a quitté la partie
+  st?: PlayerStats; // exploits de la partie en cours
 };
+
+export type PlayerStats = { liarCalls: number; liarWins: number; exactCalls: number; exactWins: number };
+const freshStats = (): PlayerStats => ({ liarCalls: 0, liarWins: 0, exactCalls: 0, exactWins: 0 });
 
 export type Reveal = {
   call: "liar" | "exact";
@@ -61,6 +70,10 @@ export type GameState = {
   reveal: Reveal | null;
   nextStarterId: string | null;
   winnerId: string | null;
+  map?: MapId; // décor de la partie (cosmétique)
+  gameNo?: number; // numéro de la partie dans ce salon (rejouer = +1)
+  recorded?: boolean; // résultats déjà enregistrés dans les stats ?
+  abandoned?: boolean; // plus aucun humain : partie arrêtée, non comptée
 };
 
 export class RuleError extends Error {}
@@ -91,9 +104,12 @@ const roll = (n: number) => Array.from({ length: n }, () => randomInt(1, 7));
 
 // ---------- création / lobby ----------
 
-export function newGame(code: string): GameState {
+export function newGame(code: string, map?: MapId): GameState {
   return {
     code,
+    map: map ?? MAPS[randomInt(0, MAPS.length)].id,
+    gameNo: 1,
+    recorded: false,
     phase: "lobby",
     round: 0,
     palifico: false,
@@ -109,7 +125,9 @@ export function newGame(code: string): GameState {
   };
 }
 
-export function addPlayer(s: GameState, id: string, name: string, token: string) {
+export type PlayerExtra = { profileId?: string | null; avatar?: string | null; cup?: string };
+
+export function addPlayer(s: GameState, id: string, name: string, token: string, extra: PlayerExtra = {}) {
   if (s.phase !== "lobby") throw new RuleError("La partie a déjà commencé");
   if (s.players.length >= MAX_PLAYERS) throw new RuleError("La table est pleine");
   const clean = name.trim().slice(0, 20);
@@ -126,7 +144,91 @@ export function addPlayer(s: GameState, id: string, name: string, token: string)
     palificoUsed: false,
     isHost: s.players.length === 0,
     isBot: false,
+    profileId: extra.profileId ?? null,
+    avatar: extra.avatar ?? null,
+    cup: extra.cup ?? "classic",
+    st: freshStats(),
   });
+}
+
+export function setMap(s: GameState, byPlayerId: string, map: string) {
+  const p = byId(s, byPlayerId);
+  if (!p.isHost) throw new RuleError("Seul l'hôte peut choisir la map");
+  if (s.phase !== "lobby") throw new RuleError("La partie a déjà commencé");
+  if (map === "random") s.map = MAPS[randomInt(0, MAPS.length)].id;
+  else if (isMapId(map)) s.map = map;
+  else throw new RuleError("Map inconnue");
+}
+
+/** Un joueur quitte : il est retiré (salle d'attente) ou éliminé (partie en cours). */
+export function leaveGame(s: GameState, playerId: string) {
+  const p = byId(s, playerId);
+  const humansLeft = () => s.players.filter((x) => !x.isBot && !x.left);
+  if (s.phase === "lobby") {
+    s.players = s.players.filter((x) => x.id !== playerId);
+    s.players.forEach((x, i) => (x.seat = i));
+  } else {
+    p.left = true;
+    if (s.phase !== "finished") {
+      const wasTurn = s.turnId === playerId;
+      // son annonce en cours n'a plus de sens : la manche repart de zéro
+      if (s.phase === "bidding" && s.bidderId === playerId) { s.bid = null; s.bidderId = null; }
+      p.diceCount = 0;
+      p.hand = [];
+      const alivePlayers = alive(s);
+      if (alivePlayers.length <= 1) {
+        s.phase = "finished";
+        s.turnId = null;
+        s.winnerId = alivePlayers[0]?.id ?? null;
+      } else if (s.phase === "bidding" && wasTurn) {
+        s.turnId = nextAliveAfter(s, playerId);
+      } else if (s.phase === "reveal" && s.nextStarterId === playerId) {
+        s.nextStarterId = nextAliveAfter(s, playerId);
+      }
+    }
+  }
+  // l'hôte part : un autre humain reprend la main
+  if (p.isHost) {
+    p.isHost = false;
+    const next = humansLeft()[0];
+    if (next) next.isHost = true;
+  }
+  // plus aucun humain : on arrête tout (et rien n'est compté)
+  if (humansLeft().length === 0) {
+    s.abandoned = true;
+    if (s.phase !== "lobby") { s.phase = "finished"; s.turnId = null; }
+  }
+}
+
+/** Une partie compte dans les stats seulement avec au moins 2 vrais joueurs. */
+export const countsForStats = (s: GameState) =>
+  !s.abandoned && s.players.filter((p) => !p.isBot && p.profileId).length >= 2;
+
+export type ResultRow = {
+  game_id: string; profile_id: string; won: boolean; humans: number; rounds: number;
+  liar_calls: number; liar_wins: number; exact_calls: number; exact_wins: number;
+};
+
+/**
+ * À appeler quand une partie se termine. Renvoie les lignes à enregistrer
+ * (une seule fois grâce à `recorded`) — vide si la partie ne compte pas.
+ */
+export function takeResults(s: GameState): ResultRow[] {
+  if (s.phase !== "finished" || s.recorded) return [];
+  s.recorded = true;
+  if (!countsForStats(s)) return [];
+  const humans = s.players.filter((p) => !p.isBot && p.profileId);
+  return humans.map((p) => ({
+    game_id: `${s.code}:${s.gameNo ?? 1}`,
+    profile_id: p.profileId!,
+    won: s.winnerId === p.id,
+    humans: humans.length,
+    rounds: s.round,
+    liar_calls: p.st?.liarCalls ?? 0,
+    liar_wins: p.st?.liarWins ?? 0,
+    exact_calls: p.st?.exactCalls ?? 0,
+    exact_wins: p.st?.exactWins ?? 0,
+  }));
 }
 
 // ---------- bots ----------
@@ -149,6 +251,9 @@ export function addBot(s: GameState, byPlayerId: string) {
     palificoUsed: false,
     isHost: false,
     isBot: true,
+    avatar: BOT_AVATARS[s.players.length % BOT_AVATARS.length],
+    cup: "classic",
+    st: freshStats(),
   });
 }
 
@@ -262,6 +367,10 @@ export function callLiar(s: GameState, playerId: string) {
   const count = countMatching(Object.values(hands), s.bid.face, s.palifico);
   const bidWasTrue = count >= s.bid.qty;
   const loserId = bidWasTrue ? playerId : s.bidderId;
+  const caller = byId(s, playerId);
+  caller.st ??= freshStats();
+  caller.st.liarCalls++;
+  if (!bidWasTrue) caller.st.liarWins++;
   const eliminated = loseDie(s, loserId);
   finishResolution(
     s,
@@ -290,7 +399,10 @@ export function callExact(s: GameState, playerId: string) {
   let loserId: string | null = null;
   let gainerId: string | null = null;
   let eliminated = false;
+  me.st ??= freshStats();
+  me.st.exactCalls++;
   if (count === s.bid.qty) {
+    me.st.exactWins++;
     if (me.diceCount < MAX_DICE) me.diceCount += 1;
     gainerId = playerId;
   } else {
@@ -326,11 +438,19 @@ export function restart(s: GameState, playerId: string) {
   const p = byId(s, playerId);
   if (!p.isHost) throw new RuleError("Seul l'hôte peut relancer une partie");
   if (s.phase !== "finished") throw new RuleError("La partie n'est pas terminée");
+  // ceux qui ont quitté ne reviennent pas à la table
+  s.players = s.players.filter((x) => !x.left);
+  s.players.forEach((x, i) => (x.seat = i));
+  if (s.players.length < MIN_PLAYERS) throw new RuleError("Il faut au moins 2 joueurs");
   for (const x of s.players) {
     x.diceCount = MAX_DICE;
     x.palificoUsed = false;
     x.hand = [];
+    x.st = freshStats();
   }
+  s.gameNo = (s.gameNo ?? 1) + 1;
+  s.recorded = false;
+  s.abandoned = false;
   s.round = 0;
   s.winnerId = null;
   s.palificoNext = false;

@@ -14,6 +14,10 @@ Le Perudo en ligne avec nos règles maison : **menteur**, **pax**, **exact**, **
 
 Dans la salle d'attente, l'hôte peut ajouter jusqu'à 7 bots (8 joueurs max). Un bot ne voit que ses propres dés, comme un vrai joueur : il calcule si l'annonce est probable, puis surenchérit, crie « Menteur ! » ou « Exact ! », et bluffe de temps en temps.
 
+## Contenu du jeu (maps, gobelets, sons, phrases)
+
+Tout est dans **`lib/catalog.ts`**. Pour les vraies illustrations et les vrais sons, voir **`ASSETS.md`**.
+
 ## Où est quoi
 
 ```

@@ -6,18 +6,22 @@
 //  l'utilisateur n'a pas touché l'écran : on « débloque » au 1er clic.
 // =============================================================
 
+import { getSettings, setSettings } from "./settings";
+
 let ctx: AudioContext | null = null;
-let muted = false;
+let master: GainNode | null = null;
 
-try { muted = localStorage.getItem("perudo:muted") === "1"; } catch {}
+export const isMuted = () => !getSettings().gameSounds;
+export function setMuted(m: boolean) { setSettings({ gameSounds: !m }); }
 
-export const isMuted = () => muted;
-export function setMuted(m: boolean) {
-  muted = m;
-  try { localStorage.setItem("perudo:muted", m ? "1" : "0"); } catch {}
+/** Sortie générale, réglée par le volume des paramètres. */
+export function out(a: AudioContext) {
+  if (!master) { master = a.createGain(); master.connect(a.destination); }
+  master.gain.value = getSettings().volume;
+  return master;
 }
 
-function ac() {
+export function ac() {
   if (typeof window === "undefined") return null;
   if (!ctx) {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -40,7 +44,7 @@ function noiseBurst(a: AudioContext, at: number, dur: number, freq: number, gain
   const bp = a.createBiquadFilter();
   bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = 1.2;
   const g = a.createGain(); g.gain.value = gain;
-  src.connect(bp).connect(g).connect(a.destination);
+  src.connect(bp).connect(g).connect(out(a));
   src.start(at);
 }
 
@@ -52,12 +56,12 @@ function tone(a: AudioContext, at: number, f0: number, f1: number, dur: number, 
   const g = a.createGain();
   g.gain.setValueAtTime(gain, at);
   g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-  o.connect(g).connect(a.destination);
+  o.connect(g).connect(out(a));
   o.start(at); o.stop(at + dur + 0.02);
 }
 
 function play(fn: (a: AudioContext, t: number) => void) {
-  if (muted) return;
+  if (!getSettings().gameSounds) return;
   const a = ac();
   if (!a || a.state !== "running") return;
   fn(a, a.currentTime + 0.01);

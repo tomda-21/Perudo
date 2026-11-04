@@ -29,12 +29,33 @@ export function lastName() {
   try { return localStorage.getItem("perudo:name") ?? ""; } catch { return ""; }
 }
 
-async function call<T>(url: string, init: RequestInit & { token?: string } = {}): Promise<T> {
+// ---------- profil permanent (gardé sur cet appareil) ----------
+export type ProfileCreds = { id: string; key: string };
+export function getProfileCreds(): ProfileCreds | null {
+  try {
+    const raw = localStorage.getItem("perudo:profile");
+    return raw ? (JSON.parse(raw) as ProfileCreds) : null;
+  } catch { return null; }
+}
+function saveProfileCreds(c: ProfileCreds) {
+  try { localStorage.setItem("perudo:profile", JSON.stringify(c)); } catch {}
+}
+
+export type MyProfile = {
+  profile: { id: string; name: string; avatar: string; hasPhoto: boolean; photoV: number; cup: string; since: string; publicAvatar: string };
+  stats: import("./catalog").Stats;
+  unlocked: string[];
+  recent: { won: boolean; at: string; humans: number; rounds: number }[];
+};
+
+async function call<T>(url: string, init: RequestInit & { token?: string; profile?: boolean } = {}): Promise<T> {
+  const prof = init.profile ? getProfileCreds() : null;
   const res = await fetch(url, {
     ...init,
     headers: {
       "content-type": "application/json",
       ...(init.token ? { "x-player-token": init.token } : {}),
+      ...(prof ? { "x-profile-id": prof.id, "x-profile-key": prof.key } : {}),
     },
     cache: "no-store",
   });
@@ -45,9 +66,20 @@ async function call<T>(url: string, init: RequestInit & { token?: string } = {})
 
 export const api = {
   create: (name: string) =>
-    call<{ code: string } & Session>("/api/games", { method: "POST", body: JSON.stringify({ name }) }),
+    call<{ code: string } & Session>("/api/games", { method: "POST", profile: true, body: JSON.stringify({ name }) }),
   join: (code: string, name: string) =>
-    call<{ code: string } & Session>(`/api/games/${code}/join`, { method: "POST", body: JSON.stringify({ name }) }),
+    call<{ code: string } & Session>(`/api/games/${code}/join`, { method: "POST", profile: true, body: JSON.stringify({ name }) }),
+  /** Charge mon profil, ou le crée au premier passage. */
+  async myProfile(name?: string): Promise<MyProfile> {
+    if (getProfileCreds()) {
+      try { return await call<MyProfile>("/api/profile", { profile: true }); } catch {}
+    }
+    const r = await call<MyProfile & ProfileCreds>("/api/profile", { method: "POST", body: JSON.stringify({ name: name ?? lastName() }) });
+    saveProfileCreds({ id: r.id, key: r.key });
+    return r;
+  },
+  updateProfile: (patch: Record<string, unknown>) =>
+    call<MyProfile>("/api/profile", { method: "PATCH", profile: true, body: JSON.stringify(patch) }),
   state: (code: string, token?: string) => call<PlayerView>(`/api/games/${code}`, { token }),
   action: (code: string, token: string, body: Record<string, unknown>) =>
     call<PlayerView>(`/api/games/${code}/action`, { method: "POST", token, body: JSON.stringify(body) }),
