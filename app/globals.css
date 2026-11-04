@@ -183,3 +183,10 @@ input:focus { border-color: var(--accent); }
   from { transform: rotate(-200deg) scale(0.4); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
+
+/* ---------- bots ---------- */
+.bot-tag { margin-left: 6px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; color: #1d1405; background: var(--muted); border-radius: 6px; padding: 1px 5px; vertical-align: middle; }
+.bots-box { display: flex; flex-direction: column; gap: 8px; }
+.bot-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.bot-chip { font: inherit; font-size: 0.8rem; color: var(--text); background: var(--card); border: 1px solid var(--card-border); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+.bot-chip:hover:not(:disabled) { border-color: var(--danger); }

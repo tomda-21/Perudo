@@ -10,7 +10,8 @@
 //    à 1 dé ; pendant cette manche les 1 ne sont pas jokers
 // =============================================================
 
-import { randomInt } from "crypto";
+import { randomBytes, randomInt, randomUUID } from "crypto";
+import { BOT_NAMES, decide } from "./bot";
 
 export const MAX_DICE = 5;
 export const MIN_PLAYERS = 2;
@@ -30,6 +31,7 @@ export type Player = {
   diceCount: number;
   palificoUsed: boolean;
   isHost: boolean;
+  isBot: boolean; // joué automatiquement par le serveur
 };
 
 export type Reveal = {
@@ -123,7 +125,62 @@ export function addPlayer(s: GameState, id: string, name: string, token: string)
     diceCount: MAX_DICE,
     palificoUsed: false,
     isHost: s.players.length === 0,
+    isBot: false,
   });
+}
+
+// ---------- bots ----------
+
+export function addBot(s: GameState, byPlayerId: string) {
+  const host = byId(s, byPlayerId);
+  if (!host.isHost) throw new RuleError("Seul l'hôte peut ajouter des bots");
+  if (s.phase !== "lobby") throw new RuleError("La partie a déjà commencé");
+  if (s.players.length >= MAX_PLAYERS) throw new RuleError("La table est pleine");
+  const taken = new Set(s.players.map((p) => p.name.toLowerCase()));
+  const free = BOT_NAMES.filter((n) => !taken.has(n.toLowerCase()));
+  const name = free[randomInt(0, free.length)] ?? `Bot ${s.players.length + 1}`;
+  s.players.push({
+    id: randomUUID(),
+    name,
+    seat: s.players.length,
+    token: randomBytes(24).toString("hex"),
+    hand: [],
+    diceCount: MAX_DICE,
+    palificoUsed: false,
+    isHost: false,
+    isBot: true,
+  });
+}
+
+export function removeBot(s: GameState, byPlayerId: string, botId: string) {
+  const host = byId(s, byPlayerId);
+  if (!host.isHost) throw new RuleError("Seul l'hôte peut retirer des bots");
+  if (s.phase !== "lobby") throw new RuleError("La partie a déjà commencé");
+  const bot = byId(s, botId);
+  if (!bot.isBot) throw new RuleError("Ce joueur n'est pas un bot");
+  s.players = s.players.filter((p) => p.id !== botId);
+  s.players.forEach((p, i) => (p.seat = i));
+}
+
+/** Identifie précisément « ce moment » de la partie (pour ne pas jouer deux fois le même coup). */
+export const turnKey = (s: GameState) => `${s.round}:${s.history.length}:${s.turnId ?? "-"}`;
+
+/** Fait jouer le bot dont c'est le tour. */
+export function botStep(s: GameState, expectedKey: string) {
+  if (s.phase !== "bidding") throw new RuleError("Ce n'est pas le moment");
+  if (turnKey(s) !== expectedKey) throw new RuleError("Coup déjà joué");
+  const bot = s.players.find((p) => p.id === s.turnId);
+  if (!bot || !bot.isBot) throw new RuleError("Ce n'est pas le tour d'un bot");
+  const d = decide({ hand: bot.hand, bid: s.bid, totalDice: totalDice(s), palifico: s.palifico });
+  try {
+    if (d.type === "liar") return callLiar(s, bot.id);
+    if (d.type === "exact") return callExact(s, bot.id);
+    return placeBid(s, bot.id, { qty: d.qty, face: d.face });
+  } catch {
+    // filet de sécurité : si jamais l'annonce choisie n'est pas valable
+    if (s.bid) return callLiar(s, bot.id);
+    return placeBid(s, bot.id, { qty: 1, face: 2 });
+  }
 }
 
 // ---------- déroulé d'une manche ----------
@@ -287,6 +344,7 @@ export type PlayerView = Omit<GameState, "players"> & {
   players: PublicPlayer[];
   me: { id: string; hand: number[] } | null;
   totalDice: number;
+  turnKey: string;
 };
 
 export function viewFor(s: GameState, playerId: string | null): PlayerView {
@@ -296,5 +354,6 @@ export function viewFor(s: GameState, playerId: string | null): PlayerView {
     players: s.players.map(({ token: _t, hand: _h, ...pub }) => pub),
     me: me ? { id: me.id, hand: s.phase === "bidding" ? me.hand : [] } : null,
     totalDice: totalDice(s),
+    turnKey: turnKey(s),
   };
 }

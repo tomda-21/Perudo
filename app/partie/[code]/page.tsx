@@ -60,6 +60,22 @@ export default function GamePage() {
     }
   }
 
+  // Quand c'est le tour d'un bot, on demande au serveur de le faire jouer
+  // après un petit délai (pour que tout le monde voie ce qu'il fait).
+  const botTurn = view?.phase === "bidding" && view.players.find((p) => p.id === view.turnId)?.isBot;
+  const botKey = botTurn ? view!.turnKey : null;
+  useEffect(() => {
+    if (!botKey || !session) return;
+    const t = setTimeout(async () => {
+      try {
+        setView(await api.action(code, session.token, { type: "bot", expect: botKey }));
+      } catch {
+        refresh(); // un autre joueur l'a déjà fait jouer : on se met juste à jour
+      }
+    }, 1200 + Math.random() * 900);
+    return () => clearTimeout(t);
+  }, [botKey, session, code, refresh]);
+
   if (notFound)
     return (
       <main className="center">
@@ -120,10 +136,10 @@ export default function GamePage() {
           return (
             <div key={p.id} className={`player ${turn ? "player-turn" : ""} ${out ? "player-out" : ""} ${p.id === me.id ? "player-me" : ""}`}>
               <div className="player-name">
-                {p.name}{p.isHost && <span className="crown" title="Hôte">♛</span>}
+                {p.name}{p.isHost && <span className="crown" title="Hôte">♛</span>}{p.isBot && <span className="bot-tag">BOT</span>}
               </div>
               {view.phase === "lobby" ? (
-                <div className="muted small">prêt</div>
+                <div className="muted small">{p.isBot ? "bot" : "prêt"}</div>
               ) : (
                 <>
                   <div className="mini-dice">
@@ -139,7 +155,8 @@ export default function GamePage() {
       </section>
 
       {view.phase === "lobby" && (
-        <Lobby view={view} isHost={me.isHost} busy={busy} onStart={() => act({ type: "start" })} onShare={share} />
+        <Lobby view={view} isHost={me.isHost} busy={busy} onStart={() => act({ type: "start" })} onShare={share}
+          onAddBot={() => act({ type: "addBot" })} onRemoveBot={(id) => act({ type: "removeBot", botId: id })} />
       )}
 
       {view.phase === "bidding" && (
@@ -176,14 +193,33 @@ export default function GamePage() {
 }
 
 // ---------- salle d'attente ----------
-function Lobby({ view, isHost, busy, onStart, onShare }: {
+function Lobby({ view, isHost, busy, onStart, onShare, onAddBot, onRemoveBot }: {
   view: PlayerView; isHost: boolean; busy: boolean; onStart: () => void; onShare: () => void;
+  onAddBot: () => void; onRemoveBot: (id: string) => void;
 }) {
+  const bots = view.players.filter((p) => p.isBot);
+  const full = view.players.length >= 8;
   return (
     <div className="card stack">
       <h2>Salle d&apos;attente</h2>
       <p className="muted">Envoie le lien ou le code <b>{view.code}</b> à tes potes. ({view.players.length}/8)</p>
       <button className="btn" onClick={onShare}>Partager le lien</button>
+      {isHost && (
+        <div className="bots-box">
+          <div className="row">
+            <button className="btn" disabled={busy || full} onClick={onAddBot}>+ Ajouter un bot</button>
+          </div>
+          {bots.length > 0 && (
+            <div className="bot-chips">
+              {bots.map((b) => (
+                <button key={b.id} className="bot-chip" disabled={busy} onClick={() => onRemoveBot(b.id)} title="Retirer ce bot">
+                  {b.name} ✕
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {isHost ? (
         <button className="btn btn-primary btn-big" disabled={busy || view.players.length < 2} onClick={onStart}>
           {view.players.length < 2 ? "En attente d'un 2ᵉ joueur…" : "Lancer la partie"}
@@ -275,7 +311,11 @@ function Bidding({ view, myId, busy, name, act }: {
           )}
         </section>
       ) : (
-        <p className="waiting">C&apos;est à <b>{name(view.turnId)}</b> de jouer…</p>
+        <p className="waiting">
+          {view.players.find((p) => p.id === view.turnId)?.isBot
+            ? <><b>{name(view.turnId)}</b> réfléchit…</>
+            : <>C&apos;est à <b>{name(view.turnId)}</b> de jouer…</>}
+        </p>
       )}
 
       {view.history.length > 0 && (

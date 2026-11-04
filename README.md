@@ -10,6 +10,10 @@ Le Perudo en ligne avec nos règles maison : **menteur**, **pax**, **exact**, **
 | **Supabase** | garde les parties et prévient tout le monde en temps réel |
 | **Vercel** | met le site en ligne à chaque envoi sur GitHub |
 
+## Les bots
+
+Dans la salle d'attente, l'hôte peut ajouter jusqu'à 7 bots (8 joueurs max). Un bot ne voit que ses propres dés, comme un vrai joueur : il calcule si l'annonce est probable, puis surenchérit, crie « Menteur ! » ou « Exact ! », et bluffe de temps en temps.
+
 ## Où est quoi
 
 ```
@@ -22,7 +26,8 @@ components/Die.tsx        ← le dessin d'un dé
 lib/
   rules.ts                ← les règles du jeu (le cœur)
   bids.ts                 ← ce qui rend une annonce valable ou non
-tests/rules.test.ts       ← vérifie que les règles marchent
+  bot.ts                  ← le cerveau des bots
+tests/                    ← vérifie que les règles et les bots marchent
 ```
 
 **Pour changer le look** : commence par `app/globals.css`, tout en haut il y a les couleurs et les polices.
