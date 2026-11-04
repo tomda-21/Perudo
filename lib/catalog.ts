@@ -61,7 +61,8 @@ export function condLabel(c: CupCondition) {
   if (c.type === "phoenix") return c.n > 1 ? `Gagner ${c.n} fois après être tombé à 1 dé` : "Gagner après être tombé à 1 dé";
   if (c.type === "flawless") return c.n > 1 ? `Gagner ${c.n} fois sans perdre un dé` : "Gagner sans perdre un seul dé";
   const unit = { wins: "victoires", played: "parties terminées", liarWins: "« Menteur ! » réussis", exactWins: "« Exact ! » réussis", winStreak: "victoires d'affilée" }[c.type];
-  return `${(c as { n: number }).n} ${unit}`;
+  const n = (c as { n: number }).n;
+  return `${n} ${n === 1 ? unit.replace("victoires", "victoire").replace("parties terminées", "partie terminée").replace("réussis", "réussi") : unit}`;
 }
 
 // ---------- AVATARS PAR DÉFAUT ----------

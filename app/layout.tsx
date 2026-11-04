@@ -9,7 +9,7 @@ const title = Lilita_One({ weight: "400", subsets: ["latin"], variable: "--font-
 const body = Nunito({ subsets: ["latin"], weight: ["600", "700", "800", "900"], variable: "--font-body-loaded", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Perudo Tomda — bluff, dés et menteurs entre potes",
+  title: "Perudo — bluff, dés et menteurs entre potes",
   description: "Le Perudo en ligne, avec nos règles maison.",
 };
 
