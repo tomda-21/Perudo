@@ -251,7 +251,6 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             <button className="pill pill-btn" onClick={() => set({ mutedPlayers: [] })}>Tout réactiver</button></div>
         )}
         <Toggle k="gameSounds" label="Sons du jeu (dés, menteur…)" />
-        <Toggle k="soundboard" label="Bruitages des joueurs" />
         <Toggle k="voices" label="Voix des phrases" />
         <Toggle k="bubbles" label="Bulles et réactions" />
         <Toggle k="reduceMotion" label="Réduire les animations" />

@@ -17,6 +17,8 @@ export const MAPS = [
 ] as const;
 /** Décors de partie intégrés (table comprise) ; une map importée dans l'admin les remplace. */
 export const GAME_SCENES = ["beach", "hell", "heaven", "street", "casino"] as const;
+/** V2 : décor sans table ni barre intégrées (la table est posée par-dessus). */
+export const gameBg2 = (scene: string) => (scene === "casino" || scene === "beach" ? `/art/game/bg2-${scene}.webp` : gameBg(scene));
 export const gameBg = (scene: string) => `/art/game/map-${(GAME_SCENES as readonly string[]).includes(scene) ? scene : "beach"}.webp`;
 export const gameTable = (scene: string) => `/art/game/table-${(GAME_SCENES as readonly string[]).includes(scene) ? scene : "beach"}.webp`;
 

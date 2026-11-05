@@ -33,6 +33,8 @@ export type Geo = {
   me: { x: number; y: number }; av: number; plaque: { x: number; y: number; s: number }; cup: { x: number; y: number; s: number };
 };
 export const DESKTOP: Geo = { W: 1734, H: 962, cx: 784, cy: 370, rx: 560, ry: 255, me: { x: 647, y: 572 }, av: 146, plaque: { x: 833, y: 318, s: 1 }, cup: { x: 798, y: 447, s: 1 } };
+/** Interface V2 (paysage d'abord) : la scène ne contient que la table et les joueurs. */
+export const LAND: Geo = { W: 1400, H: 640, cx: 700, cy: 300, rx: 610, ry: 232, me: { x: 610, y: 548 }, av: 118, plaque: { x: 700, y: 296, s: 1 }, cup: { x: 700, y: 300, s: 0 } };
 export const MOBILE: Geo = { W: 800, H: 860, cx: 400, cy: 420, rx: 300, ry: 300, me: { x: 300, y: 712 }, av: 124, plaque: { x: 400, y: 402, s: 0.86 }, cup: { x: 400, y: 545, s: 0.8 } };
 
 /** Places autour de la table : le joueur local en bas, les autres sur l'arc du haut. */
@@ -111,30 +113,8 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
   const desktop = geo === DESKTOP;
   const bidKey = `${view.round}-${view.history.length}`;
 
-  return (
-    <>
-      {withBackground && (desktop && !custom
-        ? <img className="st-bg" src={gameBg(scene)} alt="" draggable={false} />
-        : <>
-            {custom && desktop && <img className="st-bg" src={custom} alt="" draggable={false} />}
-            <img className={desktop ? "st-table-d" : "st-table-m"} src={gameTable(scene)} alt="" draggable={false} />
-          </>)}
-
-      {withBackground && !custom && (GLOWS[scene] ?? []).map(([x, y, r], i) => (
-        <span key={i} className="fx-glow" style={{ left: x - r, top: y - r, width: r * 2, height: r * 2, animationDelay: `${i * 0.6}s` }} />
-      ))}
-      {withBackground && scene === "beach" && <span className="st-sea" style={{ left: 560, top: 165, width: 420, height: 60 }} />}
-
-      {/* gobelet central : se secoue au début de la manche, sursaute à chaque annonce, se soulève à la révélation */}
-      <div className="st-cup" style={{ left: geo.cup.x, top: geo.cup.y, ["--k" as string]: geo.cup.s }}>
-        <img key={shaking ? "shake" : showReveal ? "lift" : bidKey}
-          className={`st-cup-img ${shaking ? "shake" : showReveal ? "lift" : view.history.length ? "hop" : ""}`}
-          src={`${G}cup.webp`} alt="" draggable={false} />
-        {showReveal && <span className="st-cup-rays" />}
-      </div>
-
-      <Center view={view} geo={geo} />
-
+  function seatsOf() {
+    return (<>
       {ordered.map((p, i) => {
         const pt = pts[i];
         const isMe = p.id === myId;
@@ -223,6 +203,36 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
           </div>
         );
       })}
+    </>);
+  }
+
+  const land = geo === LAND;
+  if (land) return (
+    <>
+      {withBackground && <img className="st-table-l" src={gameTable(scene)} alt="" draggable={false} />}
+      <Center view={view} geo={geo} />
+      {seatsOf()}
+      {children}
+    </>
+  );
+
+  return (
+    <>
+      {withBackground && (desktop && !custom
+        ? <img className="st-bg" src={gameBg(scene)} alt="" draggable={false} />
+        : <>
+            {custom && desktop && <img className="st-bg" src={custom} alt="" draggable={false} />}
+            <img className={desktop ? "st-table-d" : "st-table-m"} src={gameTable(scene)} alt="" draggable={false} />
+          </>)}
+
+      {withBackground && !custom && (GLOWS[scene] ?? []).map(([x, y, r], i) => (
+        <span key={i} className="fx-glow" style={{ left: x - r, top: y - r, width: r * 2, height: r * 2, animationDelay: `${i * 0.6}s` }} />
+      ))}
+      {withBackground && scene === "beach" && <span className="st-sea" style={{ left: 560, top: 165, width: 420, height: 60 }} />}
+
+      <Center view={view} geo={geo} />
+
+      {seatsOf()}
       {children}
     </>
   );
@@ -233,6 +243,7 @@ function bidLabel(qty: number, face: number) {
 }
 
 function Center({ view, geo }: { view: PlayerView; geo: Geo }) {
+  if (geo === LAND) return <Center2 view={view} />;
   const name = (id: string | null) => view.players.find((p) => p.id === id)?.name ?? "?";
   const r = view.reveal;
   const revealing = (view.phase === "reveal" || view.phase === "finished") && !!r;
@@ -312,3 +323,30 @@ export function MapIntro({ name, icon }: { name: string; icon: string }) {
 }
 
 export type { PublicPlayer };
+
+/** V2 : enchère au centre de la table, compacte (bois + dorures), sans doublon ailleurs. */
+function Center2({ view }: { view: PlayerView }) {
+  const name = (id: string | null) => view.players.find((p) => p.id === id)?.name ?? "?";
+  const r = view.reveal;
+  if (view.phase === "lobby")
+    return <div className="st-bid2 lobby"><small>Salle d&apos;attente</small><b className="code">{view.code}</b></div>;
+  if ((view.phase === "reveal" || view.phase === "finished") && r) {
+    const verdict = r.call === "liar" ? `${name(r.loserId)} perd un dé` : r.gainerId ? `${name(r.callerId)} gagne un dé !` : `${name(r.callerId)} perd un dé`;
+    return (
+      <div className={`st-bid2 reveal ${r.call}`} key={`rev-${view.round}`}>
+        <small>{r.call === "liar" ? "Dudo !" : "Exact !"} · {r.bid.qty} × {r.bid.face === 1 ? "Pax" : r.bid.face}</small>
+        <b>Il y en avait {r.count}</b>
+        <em className={r.gainerId ? "good" : ""}>{verdict}</em>
+      </div>
+    );
+  }
+  if (!view.bid)
+    return <div className="st-bid2" key={`open-${view.round}`}><small>Manche {view.round}{view.palifico ? " · Palifico" : ""}</small><b className="sm">{name(view.turnId)} ouvre</b></div>;
+  return (
+    <div className="st-bid2" key={`${view.round}-${view.history.length}`}>
+      {view.palifico && <small className="pali">Palifico</small>}
+      <b>{view.bid.qty} {view.bid.qty > 1 ? "dés" : "dé"} de {view.bid.face === 1 ? "Pax" : <DieImg value={view.bid.face} size={56} />}</b>
+      <em>par {name(view.bidderId)}</em>
+    </div>
+  );
+}

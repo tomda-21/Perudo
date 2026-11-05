@@ -5,7 +5,7 @@
 //  Les règles viennent de lib/bids (les mêmes que celles du serveur) :
 //  l'interface ne fait que proposer, le serveur valide.
 // =============================================================
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import React, { useEffect, useMemo, useState, type CSSProperties } from "react";
 import type { PlayerView } from "@/lib/rules";
 import { checkBid, minQtyFor } from "@/lib/bids";
 import { sounds } from "@/lib/sound";
@@ -161,6 +161,57 @@ export function MobileBar(props: BarProps) {
         {exactOn && <button className="mact exact" disabled={!exactLive} onClick={exact}><span>Exact !</span></button>}
       </div>
       {myTurn && p.err && <p className="mbar-err">{p.err}</p>}
+    </div>
+  );
+}
+
+/**
+ * Interface V2 : barre de commandes compacte, la même sur téléphone (paysage) et ordinateur.
+ * Mes dés (zone privée, masquables) · − quantité + · six faces · Enchérir / Dudo ! / Exact !
+ */
+export function Bar2(props: BarProps & { remain?: React.ReactNode }) {
+  const { view, myTurn, busy, act, peek, onPeek, shaking, waitingFor, imOut, remain } = props;
+  const p = useBidPicker(view);
+  const live = myTurn && !busy;
+  const exactOn = view.config?.exactEnabled !== false;
+  const exactLive = !busy && !shaking && !!view.canExact; // hors de son tour aussi (le serveur tranche)
+  const hand = view.me?.hand ?? [];
+  return (
+    <div className={`bar2 ${myTurn ? "my" : "wait"} ${imOut ? "out" : ""}`}>
+      <div className="bar2-status" aria-live="polite">
+        {imOut ? "Tu es spectateur 😈" : shaking ? "Les gobelets se secouent…" : myTurn ? <>À toi de jouer ! {remain}</> : <>C&apos;est à <b>{waitingFor}</b> {remain}</>}
+        {myTurn && p.err && !shaking && <span className="bar2-err"> · {p.err}</span>}
+      </div>
+      <div className="bar2-row">
+        {!imOut && (
+          <button className={`bar2-mine ${peek ? "open" : ""}`} onClick={onPeek} disabled={shaking}
+            aria-label={peek ? "Masquer mes dés" : "Voir mes dés"} title={peek ? "Masquer mes dés" : "Voir mes dés"}>
+            <span className="bar2-lbl">{peek ? "Mes dés" : "👁 Voir"}</span>
+            <span className="bar2-dice">
+              {hand.map((d, i) => peek && !shaking ? <DieImg key={i} value={d} size={30} /> : <span key={i} className="bar2-hid" />)}
+            </span>
+          </button>
+        )}
+        <div className="bar2-qty" role="group" aria-label="Quantité">
+          <button onClick={p.dec} disabled={!live || !p.canDec} aria-label="Moins"><img src={`${G}minus.webp`} alt="" /></button>
+          <b>{p.qty}</b>
+          <button onClick={p.inc} disabled={!live || !p.canInc} aria-label="Plus"><img src={`${G}plus.webp`} alt="" /></button>
+        </div>
+        <div className="bar2-faces" role="group" aria-label="Valeur du dé">
+          {[1, 2, 3, 4, 5, 6].map((f) => (
+            <button key={f} className={`bar2-face ${p.face === f ? "on" : ""}`} onClick={() => p.pickFace(f)} disabled={!live || p.minFor(f) === null}
+              aria-pressed={p.face === f} aria-label={f === 1 ? "Pax" : `Face ${f}`}>
+              <DieImg value={f} size={44} />
+              {f === 1 && <span className="bar2-pax">Pax</span>}
+            </button>
+          ))}
+        </div>
+        <div className="bar2-acts">
+          <button className="bar2-act bid" disabled={!live || !!p.err} onClick={() => act({ type: "bid", qty: p.qty, face: p.face })}><span>Enchérir</span></button>
+          <button className="bar2-act dudo" disabled={!live || !view.bid} onClick={() => act({ type: "liar" })}><span>Dudo !</span></button>
+          {exactOn && <button className="bar2-act exact" disabled={!exactLive} onClick={() => act({ type: "exact", expect: view.history.length })}><span>Exact !</span></button>}
+        </div>
+      </div>
     </div>
   );
 }

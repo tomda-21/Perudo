@@ -42,3 +42,10 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
 - [x] P8 Social : amis, invitations, présence, blocage/signalement, notifications.
   - `srv6` + tables `friendships`, `blocks`, `reports`, `notifications`, `presence` ; `app/api/social` ; `components/Friends.tsx` (Amis / Classements / Notifications / Moi). Demande par identifiant public, demande croisée = acceptée, présence (en ligne < 2 min, en partie = code du salon, masquable), invitations depuis la salle d'attente, blocage (retire l'amitié, bloque demandes et invitations), signalements visibles dans l'admin (tableau de bord), vitrine de 3 gobelets possédés.
 - [ ] P9 PWA + validation finale.
+
+## Interface de partie V2 (brief « REFONTE DE L'INTERFACE DE JEU V2 »)
+- Trois bandes (haut / scène / bas) dans `app/partie/[code]/page.tsx` (`.gv2`) ; seule la scène (table + joueurs, géométrie `LAND` 1400×640 dans `GameStage.tsx`) est mise à l'échelle (ResizeObserver, marge 6 %, max ×1,2) ; la barre `Bar2` (`GameBar.tsx`) est en HTML responsive (`--b` selon la hauteur d'écran).
+- Gobelet central supprimé ; enchère centrale compacte `Center2` ; décors `bg2-{casino,beach}.webp` (table et barre intégrées retirées, la table propre est posée par-dessus).
+- Bruitages manuels retirés des parties (plus de bouton Sons ; lot « Son » de la roue traité comme cosmétique ; réglage « Bruitages des joueurs » retiré). Phrases / Réactions : 2 boutons ronds en haut, panneau compact dans la scène.
+- `components/RotatePrompt.tsx` : « Tourne ton téléphone ! » en CSS pur (portrait + écran tactile ≤ 1024 px), salle d'attente / partie / révélation / victoire seulement ; n'agit que sur l'affichage.
+- Version de secours : tag Git `before-ui-v2`.

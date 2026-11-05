@@ -254,7 +254,7 @@ export async function spinWheel(profileId: string) {
     const free = mysteries(c).filter((m) => !owns(w.inventory, "cup", m.id));
     if (free.length) { const m = pickOne(free); item = { type: "cup", id: m.id, name: m.name }; }
     else { doblons = e.wheel.duplicateDoblons; compensated = true; } // tous possédés : 100 Doblons
-  } else if (prize.type === "cosmetic") {
+  } else if (prize.type === "cosmetic" || prize.type === "sound") { // les bruitages ne sont plus utilisables en partie
     const free = freeCosmetics(c, w.inventory);
     if (free.length) item = pickOne(free);
     else { doblons = e.wheel.cosmeticDoblons; compensated = true; }

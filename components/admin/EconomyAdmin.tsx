@@ -117,7 +117,7 @@ export default function EconomyAdmin() {
                   <td><input value={p.label} maxLength={30} onChange={(ev) => setPrize(i, { label: ev.target.value })} /></td>
                   <td><select value={p.type} onChange={(ev) => setPrize(i, { type: ev.target.value as WheelPrize["type"] })}>
                     <option value="doblons">Doblons</option><option value="fragment">Fragments</option><option value="mystery">Gobelet mystère</option><option value="cosmetic">Cosmétique non possédé</option>
-                    <option value="phrase">Phrase ou réaction</option><option value="sound">Son</option><option value="reaction">Réaction</option>
+                    <option value="phrase">Phrase ou réaction</option><option value="reaction">Réaction</option>
                   </select></td>
                   <td>{p.type === "doblons" || p.type === "fragment" ? <input type="number" min={0} value={p.amount} onChange={(ev) => setPrize(i, { amount: Number(ev.target.value) })} /> : <span className="muted small">au hasard</span>}</td>
                   <td><input type="number" min={0} step={0.5} value={p.weight} onChange={(ev) => setPrize(i, { weight: Number(ev.target.value) })} /></td>
