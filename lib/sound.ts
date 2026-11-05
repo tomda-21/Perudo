@@ -17,7 +17,8 @@ export function setMuted(m: boolean) { setSettings({ gameSounds: !m }); }
 /** Sortie générale, réglée par le volume des paramètres. */
 export function out(a: AudioContext) {
   if (!master) { master = a.createGain(); master.connect(a.destination); }
-  master.gain.value = getSettings().volume;
+  const s = getSettings();
+  master.gain.value = s.volume * (s.sfxVol ?? 1); // général × effets sonores
   return master;
 }
 

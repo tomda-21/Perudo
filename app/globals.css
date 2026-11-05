@@ -1371,3 +1371,6 @@ input[type="number"] { max-width: 160px; }
 .wheel-goblin { display: flex; align-items: center; gap: 8px; }
 .wheel-goblin .bubble { background: #fff6dc; color: #3b2414; border-radius: 12px; padding: 6px 10px; font-size: 13px; font-weight: 700; position: relative; }
 .wheel-goblin .bubble::before { content: ""; position: absolute; left: -7px; top: 50%; transform: translateY(-50%); border: 7px solid transparent; border-right-color: #fff6dc; border-left: 0; }
+.g2-mute { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.g2-mute button { font-size: 12px; padding: 3px 8px; border-radius: 99px; border: 1px solid rgba(255,220,150,.35); background: rgba(0,0,0,.35); color: #f4e2c0; }
+.g2-mute button.off { opacity: .6; text-decoration: line-through; }

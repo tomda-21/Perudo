@@ -182,9 +182,7 @@ export function SettingsAdmin() {
       <label className="toggle-row"><span>Variante « Exact ! »</span><input type="checkbox" checked={g.exactEnabled} onChange={(e) => set({ exactEnabled: e.target.checked })} /><span className="switch" /></label>
       <label className="toggle-row"><span>Palifico (pax non jokers à 1 dé)</span><input type="checkbox" checked={g.palificoEnabled} onChange={(e) => set({ palificoEnabled: e.target.checked })} /><span className="switch" /></label>
       <label className="toggle-row"><span>Sons et phrases entre joueurs</span><input type="checkbox" checked={g.fxEnabled} onChange={(e) => set({ fxEnabled: e.target.checked })} /><span className="switch" /></label>
-      <Field label={`Délai anti-spam du soundboard : ${g.fxCooldownSec} s`}>
-        <input type="range" min={1} max={30} value={g.fxCooldownSec} onChange={(e) => set({ fxCooldownSec: Number(e.target.value) })} />
-      </Field>
+      <p className="a-hint">Soundboard : aucun délai entre deux utilisations (choix définitif).</p>
       <p className="a-hint">Les maps disponibles et celles du tirage au hasard se règlent dans l&apos;onglet Maps (publier / désactiver, « peut être tirée au hasard »).</p>
       <Publisher {...s} />
     </div>

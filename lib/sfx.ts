@@ -142,7 +142,7 @@ const SYNTHS: Record<string, Synth> = {
   },
 };
 
-// Pour éviter la cacophonie : pas plus de 3 bruitages en même temps
+// Protection technique du navigateur (pas un délai de jeu) : 8 bruitages superposés au plus
 let playing = 0;
 
 /** Aperçu d'un bruitage dans l'admin (avant publication). */
@@ -162,13 +162,13 @@ export function previewVoice(text: string, audio?: string | null) {
 
 export function playSound(id: string) {
   const s = getSettings();
-  if (!s.soundboard || s.volume <= 0) return;
-  if (playing >= 3) return;
+  if (!s.soundboard || s.volume <= 0 || s.sfxVol <= 0) return;
+  if (playing >= 8) return;
   const def = getContent().sounds.find((x) => x.id === id);
   if (!def) return;
   playing++;
   setTimeout(() => (playing = Math.max(0, playing - 1)), 1800);
-  const vol = Math.min(1, s.volume * (def.volume ?? 1));
+  const vol = Math.min(1, s.volume * (s.sfxVol ?? 1) * (def.volume ?? 1));
   if (def.file) {
     const el = new Audio(assetUrl(def.file)!);
     el.volume = vol;
@@ -185,12 +185,12 @@ export function playSound(id: string) {
 
 export function speakPhrase(id: string) {
   const s = getSettings();
-  if (!s.voices || s.volume <= 0) return;
+  if (!s.voices || s.volume <= 0 || s.sfxVol <= 0) return;
   const p = getContent().phrases.find((x) => x.id === id);
   if (!p) return;
   if (p.audio) {
     const el = new Audio(assetUrl(p.audio)!);
-    el.volume = s.volume;
+    el.volume = Math.min(1, s.volume * (s.sfxVol ?? 1));
     el.play().catch(() => {});
     return;
   }
@@ -199,7 +199,7 @@ export function speakPhrase(id: string) {
     const u = new SpeechSynthesisUtterance(p.text);
     u.lang = "fr-FR";
     u.rate = 1.05;
-    u.volume = s.volume;
+    u.volume = Math.min(1, s.volume * (s.sfxVol ?? 1));
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
   } catch {}

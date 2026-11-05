@@ -236,13 +236,20 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Paramètres" onClose={onClose}>
       <div className="settings">
-        <label className="slider-row">
-          <span>Volume</span>
-          <input type="range" min={0} max={1} step={0.05} value={s.volume}
-            onChange={(e) => set({ volume: Number(e.target.value) })}
-            onPointerUp={() => { unlockAudio(); playSound("applaudissements"); }} />
-          <b>{Math.round(s.volume * 100)}%</b>
-        </label>
+        {/* § 65 : volumes séparés */}
+        {([["volume", "Général"], ["sfxVol", "Effets sonores"], ["musicVol", "Musique"], ["ambientVol", "Ambiance"]] as const).map(([k, label]) => (
+          <label key={k} className="slider-row">
+            <span>{label}</span>
+            <input type="range" min={0} max={1} step={0.05} value={s[k]}
+              onChange={(e) => set({ [k]: Number(e.target.value) })}
+              onPointerUp={() => { if (k === "volume" || k === "sfxVol") { unlockAudio(); playSound("applaudissements"); } }} />
+            <b>{Math.round(s[k] * 100)}%</b>
+          </label>
+        ))}
+        {s.mutedPlayers.length > 0 && (
+          <div className="row-wrap"><span className="muted small">{s.mutedPlayers.length} joueur{s.mutedPlayers.length > 1 ? "s" : ""} coupé{s.mutedPlayers.length > 1 ? "s" : ""} localement</span>
+            <button className="pill pill-btn" onClick={() => set({ mutedPlayers: [] })}>Tout réactiver</button></div>
+        )}
         <Toggle k="gameSounds" label="Sons du jeu (dés, menteur…)" />
         <Toggle k="soundboard" label="Bruitages des joueurs" />
         <Toggle k="voices" label="Voix des phrases" />

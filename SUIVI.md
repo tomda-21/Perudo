@@ -20,7 +20,10 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
   - Le navigateur garde la session Supabase (`perudo-auth`) ; `syncAccount()` l'échange contre le profil du compte (id + clé d'appareil).
   - À faire par Tom : URL du site dans Supabase (Authentication → URL Configuration). Envoi d'e-mails Supabase par défaut très limité.
   - Restes : réinit. mot de passe joueur dans l'admin = ancien système (P7) ; « parties avec bots comptent » (P5).
-- [ ] P3 Interface : dés perso permanents, mobile paysage, zooms, Palifico/élimination, gobelin commentateur, retrait anti-spam, volumes séparés, couper un joueur.
+- [x] P3 Interface : dés perso permanents, mobile paysage, zooms, Palifico/élimination, gobelin commentateur, retrait anti-spam, volumes séparés, couper un joueur.
+  - Soundboard : plus aucun délai ni anti-spam (émission et réception) ; limite technique de 8 sons superposés côté navigateur. Coupure locale par joueur (panneau Sons/Phrases, `settings.mutedPlayers`).
+  - Volumes séparés : Général, Effets sonores, Musique, Ambiance (musique/ambiance : pas encore de pistes audio, réglages prêts).
+  - Vérifié en paysage 844×390 / 932×430, portrait 390×844, bureau 1440×900 : aucun bouton hors écran.
 - [ ] P4 Maps : 8 maps (3 nouvelles), décors HD manquants (fournis par Tom).
 - [x] P5 Progression : nouveaux gains, formule de niveau, paliers, 3 défis/j + 1 hebdo, classements amis, succès.
   - `lib/economy.ts` (valeurs § 40–42, `levelRewardsUpTo`), `lib/progression.ts` (`grantLevelRewards`, `challengeReward`), cadres de palier `bronze-gobelin` / `gold-anim` (reward: jamais vendus), `lib/ranking.ts` + `lib/ranking-server.ts` (`srv5 rank_stats`). Toute partie terminée compte (bots compris), invités exclus.

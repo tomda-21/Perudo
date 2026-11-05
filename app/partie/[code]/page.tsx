@@ -97,7 +97,7 @@ export default function GamePage() {
     return () => { realtime().removeChannel(ch); };
   }, [code, myId]);
 
-  const { fx, send, cooldownUntil } = useFx(code, myId, view?.players ?? []);
+  const { fx, send } = useFx(code, myId, view?.players ?? []);
 
   // fin de partie : on va chercher ce que le serveur a crédité (rien n'est calculé ici)
   const finishedKey = view?.phase === "finished" ? `${view.gameNo ?? 1}` : null;
@@ -366,13 +366,24 @@ export default function GamePage() {
                 {(panel === "sounds" ? SOUNDS.filter((s) => owned("sound", s.id, s.price)).map((s) => ({ id: s.id, label: s.label, icon: s.icon }))
                   : panel === "reactions" ? REACTIONS.filter((r) => owned("reaction", r.id, r.price)).map((r) => ({ id: r.id, label: r.label, icon: r.emoji }))
                   : PHRASES.filter((p) => owned("phrase", p.id, p.price)).map((p) => ({ id: p.id, label: p.text, icon: "💬" }))).map((x) => (
-                  <button key={x.id} className="g2-fx-btn" disabled={Date.now() < cooldownUntil}
+                  <button key={x.id} className="g2-fx-btn"
                     onClick={() => { unlockAudio(); send(panel === "sounds" ? "sound" : panel === "reactions" ? "reaction" : "phrase", x.id); }}>
                     <span>{x.icon}</span> {x.label}
                   </button>
                 ))}
               </div>
-              <Cooldown until={cooldownUntil} />
+              <div className="cooldown">Un clic = tout le monde l&apos;entend</div>
+              {/* § 65 : couper localement les sons d'un joueur */}
+              <div className="g2-mute">
+                {view.players.filter((p) => p.id !== me?.id && !p.isBot).map((p) => {
+                  const k = p.profileId ?? p.id; const off = settings.mutedPlayers.includes(k);
+                  return (
+                    <button key={p.id} className={off ? "off" : ""} onClick={() => setSettings({ mutedPlayers: off ? settings.mutedPlayers.filter((x) => x !== k) : [...settings.mutedPlayers, k] })}>
+                      {off ? "🔇" : "🔊"} {p.name}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </aside>
@@ -391,7 +402,7 @@ export default function GamePage() {
           <p className="center-text">
             {view.phase === "lobby" ? "Tu vas quitter la salle d'attente."
               : view.phase === "finished" ? "Retour à l'accueil."
-              : onlyBots ? "La partie contre les bots sera arrêtée. Elle ne compte pas dans tes stats."
+              : onlyBots ? "La partie contre les bots sera arrêtée : elle ne sera pas comptée."
               : "Tu quittes la table : les autres continuent sans toi. Si la partie compte, elle sera enregistrée comme une défaite."}
           </p>
           <div className="row">
@@ -405,18 +416,6 @@ export default function GamePage() {
       {error && <p className="error toast">{error}</p>}
     </main>
   );
-}
-
-function Cooldown({ until }: { until: number }) {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (Date.now() >= until) return;
-    const t = setInterval(() => tick((x) => x + 1), 250);
-    const s = setTimeout(() => clearInterval(t), until - Date.now() + 300);
-    return () => { clearInterval(t); clearTimeout(s); };
-  }, [until]);
-  const left = Math.max(0, until - Date.now());
-  return <div className="cooldown">{left > 0 ? `Patiente ${Math.ceil(left / 1000)} s…` : "Un clic = tout le monde l'entend"}</div>;
 }
 
 // ---------- rejoindre via le lien ----------

@@ -13,7 +13,7 @@ import { getContent } from "./content-client";
 import type { SeatFx } from "@/components/GameStage";
 
 export type FxKind = "sound" | "phrase" | "reaction";
-type Seat = { id: string; fxOwned?: string[] | null };
+type Seat = { id: string; fxOwned?: string[] | null; profileId?: string | null };
 
 /** Un effet payant n'est joué que si son auteur le possède (liste fournie par le serveur). */
 export function fxAllowed(kind: FxKind, id: string, sender: Seat | undefined) {
@@ -28,19 +28,18 @@ export function useFx(code: string, myId: string | null, players: Seat[] = []) {
   const seats = useRef(players);
   seats.current = players;
   const [fx, setFx] = useState<Record<string, SeatFx>>({});
-  const [cooldownUntil, setCooldownUntil] = useState(0);
   const ch = useRef<RealtimeChannel | null>(null);
-  const lastFrom = useRef<Record<string, number>>({});
 
   const show = useCallback((from: string, kind: FxKind, id: string) => {
     // on ignore les effets inconnus, trafiqués, ou non possédés par leur auteur
     const c = getContent();
     if (!c.settings.fxEnabled) return;
     if (!fxAllowed(kind, id, seats.current.find((p) => p.id === from))) return;
+    // § 66 : aucun délai ni anti-spam ; § 65 : un joueur peut être coupé localement (son seulement, la bulle reste)
     const now = Date.now();
-    if (now - (lastFrom.current[from] ?? 0) < c.settings.fxCooldownSec * 600) return; // anti-spam côté réception
-    lastFrom.current[from] = now;
-    if (kind === "sound") playSound(id); else if (kind === "phrase") speakPhrase(id);
+    const sender = seats.current.find((p) => p.id === from);
+    const muted = getSettings().mutedPlayers.includes(sender?.profileId ?? from);
+    if (!muted) { if (kind === "sound") playSound(id); else if (kind === "phrase") speakPhrase(id); }
     if (!getSettings().bubbles) return;
     const key = now;
     setFx((f) => ({ ...f, [from]: { kind, id, key } }));
@@ -64,13 +63,9 @@ export function useFx(code: string, myId: string | null, players: Seat[] = []) {
 
   const send = useCallback((kind: FxKind, id: string) => {
     if (!myId) return;
-    const now = Date.now();
-    if (now < cooldownUntil) return;
-    setCooldownUntil(now + getContent().settings.fxCooldownSec * 1000);
-    lastFrom.current[myId] = 0;
     show(myId, kind, id);
     ch.current?.send({ type: "broadcast", event: "fx", payload: { from: myId, kind, id } });
-  }, [myId, cooldownUntil, show]);
+  }, [myId, show]);
 
-  return { fx, send, cooldownUntil };
+  return { fx, send };
 }

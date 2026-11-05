@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 
 export type Settings = {
-  volume: number; // 0 → 1
+  volume: number; // général, 0 → 1
+  musicVol: number; // musique
+  ambientVol: number; // ambiance
+  sfxVol: number; // effets sonores (jeu, bruitages, voix)
+  mutedPlayers: string[]; // joueurs coupés localement (id de profil)
   gameSounds: boolean; // sons du jeu (dés, menteur…)
   soundboard: boolean; // bruitages des autres joueurs
   voices: boolean; // voix des phrases cultes
@@ -11,7 +15,7 @@ export type Settings = {
   reduceMotion: boolean;
 };
 
-const DEFAULTS: Settings = { volume: 0.8, gameSounds: true, soundboard: true, voices: true, bubbles: true, reduceMotion: false };
+const DEFAULTS: Settings = { volume: 0.8, musicVol: 0.6, ambientVol: 0.6, sfxVol: 1, mutedPlayers: [], gameSounds: true, soundboard: true, voices: true, bubbles: true, reduceMotion: false };
 const KEY = "perudo:settings";
 const listeners = new Set<(s: Settings) => void>();
 let current: Settings = DEFAULTS;
