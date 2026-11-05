@@ -108,7 +108,7 @@ export default function Home() {
   const me = profile.data?.profile;
   const p = prog.data;
   const wheelCd = useCountdown(p?.member ? p.wheel.next : null);
-  const wheelChip = !p ? "…" : !p.member ? "Compte requis" : p.wheel.ready || !wheelCd ? "Prête !" : wheelCd;
+  const wheelChip = !p ? "…" : !p.member ? "Connexion" : p.wheel.ready || !wheelCd ? "Prête !" : wheelCd;
 
   // défi terminé pas encore vu → pastille « ! »
   const doneKey = p?.member ? p.challenges.filter((c) => c.done).map((c) => `${c.id}@${c.ends}`).sort().join(",") : "";
