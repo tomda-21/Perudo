@@ -37,13 +37,26 @@ function useCountdown(iso: string | null | undefined) {
 
 /** Échelle de la scène (couvre l'écran) + mode téléphone. */
 function useStage() {
-  const [v, setV] = useState({ s: 0.6, mobile: false, hs: 0.6 });
+  const [v, setV] = useState({ s: 0.6, mobile: false, hs: 0.6, left: 18, right: 18, top: 14 });
   useEffect(() => {
     const f = () => {
       const w = window.innerWidth, h = window.innerHeight;
       const mobile = w / h < 1.15 || w < 700;
-      const s = Math.max(w / STAGE_W, h / STAGE_H);
-      setV({ s, mobile, hs: Math.min(1, Math.max(0.5, s)) });
+      // on recouvre l'écran, mais sans trop rogner les côtés (gobelin, gros dé) :
+      // sur un écran plus « carré », le ciel est prolongé en haut à la place
+      const cover = Math.max(w / STAGE_W, h / STAGE_H);
+      const wide = w / h >= STAGE_W / STAGE_H;
+      const s = Math.min(cover, wide
+        ? Math.max(h / STAGE_H, w / (STAGE_W * 1.25))     // très large : décor prolongé sur les côtés
+        : Math.max(w / (STAGE_W - 20), (h * 0.8) / STAGE_H)); // plus carré : ciel prolongé en haut
+      // le profil et les Doblons se posent à l'emplacement prévu dans le décor,
+      // tout en restant toujours entièrement visibles
+      const sl = (w - STAGE_W * s) / 2, st = h - STAGE_H * s, hs = Math.max(0.5, s);
+      setV({
+        s, mobile, hs,
+        left: Math.max(12, sl + 22 * s), top: Math.max(12, st + 18 * s),
+        right: Math.max(12, w - (sl + 2338 * s)),
+      });
     };
     f();
     window.addEventListener("resize", f);
@@ -63,7 +76,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<Menu>(null);
-  const { s, mobile, hs } = useStage();
+  const { s, mobile, hs, left, right, top } = useStage();
 
   useEffect(() => setName((n) => n || lastName()), []);
   useEffect(() => { if (profile.data) setName((n) => n || profile.data!.profile.name); }, [profile.data]);
@@ -172,6 +185,9 @@ export default function Home() {
       {!mobile ? (
         <>
           <div className="stage" style={{ width: STAGE_W, height: STAGE_H, transform: `translateX(-50%) scale(${s})` }}>
+            <span className="stage-sky" aria-hidden="true" />
+            <span className="stage-side stage-side-l" aria-hidden="true" />
+            <span className="stage-side stage-side-r" aria-hidden="true" />
             <img className="stage-bg" src={bg ?? `${A}bg.webp`} alt="" draggable={false} />
             {/* cascade, lanternes, néons */}
             <span className="fx-waterfall" style={at(2030, 460, 155, 300)} />
@@ -181,7 +197,7 @@ export default function Home() {
             <div className="fx-motes" aria-hidden="true">{Array.from({ length: 22 }, (_, i) => <span key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i * 1.3) % 9}s`, animationDuration: `${9 + (i % 5) * 2}s` }} />)}</div>
 
             <img className="goblin" src={goblin} alt="Le gobelin, mascotte de Perudo" style={at(90, 300, 740, 640)} draggable={false} />
-            {appearance.tagline && <div className="goblin-bubble" style={at(560, 250)}>{appearance.tagline}</div>}
+            {appearance.tagline && <div className="goblin-bubble" style={at(372, 236)}>{appearance.tagline}</div>}
 
             <img className="hdie die-float" src={`${A}die-a.webp`} alt="" style={at(982, 12, 92, 89)} />
             <div className="stage-logo" style={at(815, 108, 730, 362)}><Logo image={appearance.logo} shine={!calm} /></div>
@@ -194,12 +210,12 @@ export default function Home() {
             </button>
             {cards.map((c) => Card(c, c.pos))}
           </div>
-          <div className="hhud hhud-left" style={{ transform: `scale(${hs})` }}>{ProfileBadge}</div>
-          <div className="hhud hhud-right" style={{ transform: `scale(${hs})` }}>{Wallet}{TopButtons}</div>
+          <div className="hhud hhud-left" style={{ transform: `scale(${hs})`, left, top }}>{ProfileBadge}</div>
+          <div className="hhud hhud-right" style={{ transform: `scale(${hs})`, right, top }}>{Wallet}{TopButtons}</div>
         </>
       ) : (
         <>
-          <div className="m-bg" style={{ backgroundImage: `url(${bg ?? `${A}bg-1280.webp`})` }}>
+          <div className="m-bg" style={{ backgroundImage: `url(${bg ?? `${A}bg-mobile.webp`})` }}>
             <span className="fx-waterfall m-wf" />
             <div className="fx-motes" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <span key={i} style={{ left: `${(i * 41) % 100}%`, animationDelay: `${(i * 1.7) % 9}s` }} />)}</div>
           </div>
