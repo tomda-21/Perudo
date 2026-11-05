@@ -40,7 +40,13 @@ export default function GamePage() {
   const [copied, setCopied] = useState(false);
   const [present, setPresent] = useState<Set<string> | null>(null);
   const [shaking, setShaking] = useState(false);
-  const [peek, setPeek] = useState(false);
+  // § 30 : mes dés restent visibles (réglage gardé sur l'appareil), un bouton les masque
+  const [settings, setSettings] = useSettings();
+  const peek = settings.showDice;
+  const setPeek = (v: boolean | ((x: boolean) => boolean)) => setSettings({ showDice: typeof v === "function" ? v(settings.showDice) : v });
+  const [zoom, setZoom] = useState(false); // petit zoom de caméra (Dudo, Exact, élimination, victoire)
+  const [goblin, setGoblin] = useState<{ text: string; emo: string; key: number } | null>(null);
+  const [pali, setPali] = useState<{ name: string; key: number } | null>(null);
   const [panel, setPanel] = useState<null | "sounds" | "phrases" | "reactions">(null);
   const [prog, setProg] = useState<Progress | null>(null);
   const [gain, setGain] = useState<{ doblons: number; xp: number } | null>(null);
@@ -48,7 +54,6 @@ export default function GamePage() {
   const [callFx, setCallFx] = useState<null | { kind: "liar" | "exact"; success: boolean; key: number }>(null);
   const [intro, setIntro] = useState<string | null>(null);
   const layout = useLayout();
-  const [settings, setSettings] = useSettings();
   const { maps: MAPS, sounds: SOUNDS, phrases: PHRASES, reactions: REACTIONS, victories: VICTORIES, settings: game } = useContent();
   // ma progression : objets possédés pour le soundboard, gains de fin de partie
   useEffect(() => { api.progress().then(setProg).catch(() => {}); }, []);
@@ -138,8 +143,9 @@ export default function GamePage() {
     if (p) {
       if (view.phase === "bidding" && view.round !== p.round) {
         setShaking(true);
-        setPeek(false);
         sounds.shake();
+        // § 34 : animation spéciale du Palifico
+        if (view.palifico) { const n = view.players.find((x) => x.id === view.turnId)?.name ?? ""; setPali({ name: n, key: Date.now() }); setTimeout(() => setPali(null), 2600); }
         setTimeout(() => setShaking(false), SHAKE_MS);
       } else if (view.phase === "bidding" && now.hist > p.hist) {
         sounds.bid();
@@ -156,6 +162,13 @@ export default function GamePage() {
       if ((view.phase === "reveal" || view.phase === "finished") && p.phase === "bidding" && view.reveal) {
         const r = view.reveal;
         setCallFx({ kind: r.call, success: r.call === "exact" ? !!r.gainerId : r.loserId !== r.callerId, key: Date.now() });
+        setZoom(true); setTimeout(() => setZoom(false), 1100);
+        // § 35 : le gobelin réagit APRÈS la révélation (il ne dévoile jamais un bluff)
+        const g = view.phase === "finished" && view.winnerId ? { text: "Champion ! Champion !", emo: "🎉" }
+          : r.eliminatedId ? { text: "Aïe… éliminé !", emo: "😬" }
+          : r.call === "exact" && r.gainerId ? { text: "Bravo, pile poil !", emo: "👏" }
+          : r.call === "liar" && r.loserId === r.callerId ? { text: "Ha ha ! Dudo raté !", emo: "😂" } : null;
+        if (g) { const k = Date.now(); setTimeout(() => setGoblin({ ...g, key: k }), 900); setTimeout(() => setGoblin((x) => (x?.key === k ? null : x)), 4200); }
         setTimeout(() => setCallFx(null), FX_MS);
         if (r.call === "liar") { sounds.dudo(); sounds.liar(); } else { sounds.exactFx(); sounds.exact(); }
         setTimeout(() => (r.gainerId ? sounds.gain() : sounds.lose()), 700);
@@ -271,10 +284,10 @@ export default function GamePage() {
 
       {layout.mobile ? (
         <div className="g2-mstage" style={{ height: MOBILE.H * layout.s }}>
-          <div className="g2-stage" style={{ width: MOBILE.W, height: MOBILE.H, transform: `scale(${layout.s})` }}>{stage}</div>
+          <div className={`g2-stage ${zoom ? "camzoom" : ""}`} style={{ width: MOBILE.W, height: MOBILE.H, ["--s" as string]: layout.s, transform: `scale(${layout.s})` }}>{stage}</div>
         </div>
       ) : (
-        <div className="g2-stage desk" style={{ width: DESKTOP.W, height: DESKTOP.H, transform: `translateX(-50%) scale(${layout.s})` }}>
+        <div className={`g2-stage desk ${zoom ? "camzoom" : ""}`} style={{ width: DESKTOP.W, height: DESKTOP.H, ["--s" as string]: layout.s, transform: `translateX(-50%) scale(${layout.s})` }}>
           {stage}
           {lowerPanel && <div className="g2-lower">{lowerPanel}</div>}
         </div>
@@ -309,14 +322,9 @@ export default function GamePage() {
         </div>
       )}
 
-      {/* mes dés, quand je soulève mon gobelet (personne d'autre ne les reçoit) */}
-      {view.phase === "bidding" && !imOut && (
-        <div className={`g2-tray ${peek && !shaking ? "open" : ""}`} aria-hidden={!peek} onClick={() => setPeek(false)}>
-          <span className="g2-tray-lbl">Mes dés</span>
-          {(view.me?.hand ?? []).map((d, i) => <DieImg key={i} value={d} size={layout.mobile ? 50 : 74} />)}
-        </div>
-      )}
-
+      {/* § 35 : gobelin commentateur */}
+      {goblin && !calm && <div key={goblin.key} className="goblin-comment"><Avatar name="Gobelin" avatar="gobelin" size={layout.mobile ? 48 : 64} /><span className="bubble">{goblin.emo} {goblin.text}</span></div>}
+      {pali && !calm && <div key={pali.key} className="palifico-fx"><b>PALIFICO !</b><span>{pali.name} n&apos;a plus qu&apos;un dé · la valeur sera verrouillée</span></div>}
       {callFx && !calm && <CallFx key={callFx.key} kind={callFx.kind} success={callFx.success} />}
       {introMap && <MapIntro name={introMap.name} icon={introMap.icon} />}
 

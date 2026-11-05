@@ -142,7 +142,9 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
         const active = view.phase === "bidding" && view.turnId === p.id;
         const away = !!view.away?.includes(p.id); // absent > 60 s : un bot joue à sa place
         const offline = away || (!p.isBot && !p.left && present !== null && !present.has(p.id));
-        const hand = showReveal ? r!.hands[p.id] : undefined;
+        // § 30 : mes dés affichés en permanence (zone privée, masquables) ; jamais ceux des autres avant la révélation
+        const mine = isMe && view.phase === "bidding" && peek && !shaking ? view.me?.hand : undefined;
+        const hand = showReveal ? r!.hands[p.id] : mine;
         const f = fx[p.id];
         const sound = f?.kind === "sound" ? SOUNDS.find((s) => s.id === f.id) : undefined;
         const phrase = f?.kind === "phrase" ? PHRASES.find((s) => s.id === f.id) : undefined;
@@ -160,6 +162,8 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
             style={{ left: pt.x, top: pt.y, ["--av" as string]: `${geo.av}px` } as CSSProperties}>
 
             {/* gobelet du joueur (son vrai modèle de collection), posé vers la table */}
+            {/* § 34 : éliminé → gobelet renversé */}
+            {out && !p.left && <div className="st-seat-cup overturned" style={{ transform: `translate(${toward.x}px, ${toward.y}px)` }}><Cup size="sm" skin={p.cup ?? "classic"} state="down" /></div>}
             {view.phase !== "lobby" && !out && !hand && (
               <div className="st-seat-cup" style={{ transform: `translate(${toward.x}px, ${toward.y}px)` }}>
                 <Cup size={isMe ? "md" : "sm"} skin={p.cup ?? "classic"}
@@ -170,8 +174,8 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
               </div>
             )}
             {hand && isMe && (
-              <div className="st-hand" style={{ transform: `translate(${toward.x * 1.15}px, ${toward.y}px)` }}>
-                {hand.map((d, k) => <DieImg key={k} value={d} size={desktop ? 44 : 38} hl={counts(d)} dim={!counts(d)} />)}
+              <div className={`st-hand ${mine ? "mine" : ""}`} onClick={mine ? onCupClick : undefined} title={mine ? "Masquer mes dés" : undefined} style={{ transform: `translate(${toward.x * 1.15 - (mine ? geo.av * 0.45 : 0)}px, ${toward.y}px)` }}>
+                {hand.map((d, k) => <DieImg key={k} value={d} size={desktop ? 44 : 38} hl={showReveal && counts(d)} dim={showReveal && !counts(d)} />)}
               </div>
             )}
 

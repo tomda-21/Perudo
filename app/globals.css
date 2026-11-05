@@ -1374,3 +1374,22 @@ input[type="number"] { max-width: 160px; }
 .g2-mute { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .g2-mute button { font-size: 12px; padding: 3px 8px; border-radius: 99px; border: 1px solid rgba(255,220,150,.35); background: rgba(0,0,0,.35); color: #f4e2c0; }
 .g2-mute button.off { opacity: .6; text-decoration: line-through; }
+
+/* ===== PARTIE P3 : caméra, Palifico, gobelin commentateur, élimination ===== */
+.g2-stage.camzoom { animation: camzoom 1.05s ease-in-out; }
+.g2-stage.desk.camzoom { animation-name: camzoomd; }
+@keyframes camzoom { 0%, 100% { transform: scale(var(--s)); } 40% { transform: scale(calc(var(--s) * 1.045)); } }
+@keyframes camzoomd { 0%, 100% { transform: translateX(-50%) scale(var(--s)); } 40% { transform: translateX(-50%) scale(calc(var(--s) * 1.045)); } }
+.palifico-fx { position: absolute; z-index: 40; left: 50%; top: 34%; translate: -50% -50%; display: grid; justify-items: center; gap: 4px; pointer-events: none; animation: palin 2.6s ease-out forwards; }
+.palifico-fx b { font-family: var(--font-title); font-size: clamp(38px, 7vw, 84px); color: #ffe27a; letter-spacing: .06em; text-shadow: 0 0 18px #ff8a1f, 0 4px 0 #6b2c00, 0 8px 18px rgba(0,0,0,.7); }
+.palifico-fx span { font-weight: 800; color: #fff4d8; background: rgba(40,14,0,.7); border: 2px solid #e8b04a; border-radius: 99px; padding: 4px 14px; font-size: clamp(12px, 1.6vw, 18px); }
+@keyframes palin { 0% { opacity: 0; transform: scale(.4) rotate(-6deg); } 15% { opacity: 1; transform: scale(1.12) rotate(2deg); } 25% { transform: scale(1) rotate(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05); } }
+.goblin-comment { position: absolute; z-index: 38; left: 14px; bottom: 26%; display: flex; align-items: center; gap: 8px; pointer-events: none; animation: gobin 3.3s ease-out forwards; }
+.goblin-comment .bubble { background: #fff6dc; color: #3b2414; border-radius: 14px; padding: 7px 12px; font-weight: 800; font-size: 15px; box-shadow: 0 4px 10px rgba(0,0,0,.4); }
+.game2.is-mobile .goblin-comment { bottom: auto; top: 64px; left: 8px; }
+@keyframes gobin { 0% { opacity: 0; transform: translateX(-60px) rotate(-8deg); } 12% { opacity: 1; transform: translateX(6px) rotate(3deg); } 20% { transform: none; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(10px); } }
+.st-seat-cup.overturned .cup { rotate: 165deg; translate: 0 10px; filter: grayscale(.6) brightness(.75); }
+.st-seat.out .st-portrait { animation: outwobble .6s ease-in-out 1; }
+@keyframes outwobble { 0%, 100% { rotate: 0deg; } 30% { rotate: -8deg; } 60% { rotate: 6deg; } }
+.st-hand.mine { cursor: pointer; padding: 4px 6px; border-radius: 10px; background: rgba(20,8,2,.55); outline: 2px solid rgba(255,214,120,.35); }
+.reduce-motion .g2-stage.camzoom { animation: none; }

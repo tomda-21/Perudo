@@ -23,6 +23,7 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
 - [x] P3 Interface : dés perso permanents, mobile paysage, zooms, Palifico/élimination, gobelin commentateur, retrait anti-spam, volumes séparés, couper un joueur.
   - Soundboard : plus aucun délai ni anti-spam (émission et réception) ; limite technique de 8 sons superposés côté navigateur. Coupure locale par joueur (panneau Sons/Phrases, `settings.mutedPlayers`).
   - Volumes séparés : Général, Effets sonores, Musique, Ambiance (musique/ambiance : pas encore de pistes audio, réglages prêts).
+  - Dés perso affichés en permanence près de l'avatar (réglage `showDice`, bouton Cacher/Voir) ; petit zoom caméra à chaque révélation ; bannière PALIFICO ; gobelet renversé pour les éliminés ; gobelin commentateur (Dudo raté, Exact réussi, élimination, victoire — après révélation seulement).
   - Vérifié en paysage 844×390 / 932×430, portrait 390×844, bureau 1440×900 : aucun bouton hors écran.
 - [ ] P4 Maps : 8 maps (3 nouvelles), décors HD manquants (fournis par Tom).
 - [x] P5 Progression : nouveaux gains, formule de niveau, paliers, 3 défis/j + 1 hebdo, classements amis, succès.
