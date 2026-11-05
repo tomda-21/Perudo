@@ -23,3 +23,10 @@ export async function srv3<T = unknown>(op: string, args: Record<string, unknown
   if (error) throw new Error(`srv3 ${op}: ${error.message}`);
   return data as T;
 }
+
+/** Comptes e-mail (Supabase Auth) : liens compte ↔ profil, pseudos, suppression, admin. */
+export async function srv4<T = unknown>(op: string, args: Record<string, unknown> = {}): Promise<T> {
+  const { data, error } = await db().rpc("srv4", { p_secret: process.env.APP_SECRET!, p_op: op, p_args: args });
+  if (error) throw new Error(`srv4 ${op}: ${error.message}`);
+  return data as T;
+}

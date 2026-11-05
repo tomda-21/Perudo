@@ -5,6 +5,7 @@
 // =============================================================
 import { AdminError, requireAdmin } from "@/lib/admin";
 import { srv, srv2, srv3 } from "@/lib/srv";
+import { accountOf } from "@/lib/account";
 import { hashPassword } from "@/lib/admin";
 import { EconomyError } from "@/lib/economy";
 import { playerPasswordProblem } from "@/lib/progression";
@@ -136,7 +137,7 @@ async function run(op: string, b: Record<string, unknown>, actor: string) {
 
     case "player_wallet": {
       const id = String(b.id);
-      const [account, wallet] = await Promise.all([srv2("acct_get", { profile_id: id }), srv2("wallet", { profile_id: id })]);
+      const [account, wallet] = await Promise.all([accountOf(id), srv2("wallet", { profile_id: id })]);
       return { account, wallet };
     }
 
@@ -149,7 +150,7 @@ async function run(op: string, b: Record<string, unknown>, actor: string) {
       if (Math.abs(doblons) > 100000 || Math.abs(fragments) > 100) throw new ContentError("Montant trop grand");
       if (!doblons && !fragments) throw new ContentError("Rien à ajuster");
       const id = String(b.id);
-      if (!(await srv2("acct_get", { profile_id: id }))) throw new ContentError("Ce joueur n'a pas de compte");
+      if (!(await accountOf(id))) throw new ContentError("Ce joueur n'a pas de compte");
       try {
         await srv2("grant", { profile_id: id, event_id: `admin:${Date.now()}:${actor}`, kind: "admin", doblons, fragments, detail: { reason, by: actor } });
       } catch { throw new ContentError("Le solde ne peut pas devenir négatif"); }

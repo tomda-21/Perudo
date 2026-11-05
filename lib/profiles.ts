@@ -12,6 +12,8 @@ import { AVATARS, isAvatarId, isUnlocked, Stats } from "./catalog";
 import { publicContent } from "./content-server";
 import { srv, srv2 } from "./srv";
 import { RuleError, ResultRow } from "./rules";
+import { accountOf, NAME_CHANGES_PER_MONTH, parisMonth } from "./account";
+import { srv4 } from "./srv";
 
 const sha = (x: string) => createHash("sha256").update(x).digest("hex");
 function db() {
@@ -49,7 +51,7 @@ export async function authProfile(id: string | null | undefined, key: string | n
 }
 
 export async function isMember(id: string) {
-  return !!(await srv2<unknown>("acct_get", { profile_id: id }));
+  return !!(await accountOf(id));
 }
 
 /** Profil bloqué par l'admin ? (il ne peut plus créer ni rejoindre de partie) */
@@ -90,6 +92,7 @@ const cleanName = (n: unknown) => String(n ?? "").trim().slice(0, 20);
 
 export async function createProfile(name: unknown) {
   const n = cleanName(name) || "Joueur";
+
   const id = randomUUID();
   const key = randomBytes(24).toString("hex");
   const row: Row = {
@@ -128,18 +131,19 @@ export function computeStats(rows: ResultDb[]): Stats {
 /** Ce que le joueur voit de son propre profil. */
 export async function profilePayload(r: Row) {
   const rows = await results(r.id);
-  const [stats, account] = await Promise.all([fullStats(r.id, rows), srv2<{ login: string; created_at: string } | null>("acct_get", { profile_id: r.id })]);
+  const [stats, account] = await Promise.all([fullStats(r.id, rows), accountOf(r.id)]);
   const { unlocked, cups } = await unlockedCups(r.id, stats, !!account);
   return {
     profile: {
       id: r.id, name: r.name, avatar: r.avatar, hasPhoto: !!r.photo, photoV: r.photo_v,
       cup: r.cup, since: r.created_at, publicAvatar: publicAvatar(r),
     },
-    account: account ? { login: account.login, since: account.created_at } : null,
+    // privé : visible uniquement par le titulaire (jamais dans les fiches publiques)
+    account: account ? { login: account.public_id, since: account.created_at, email: account.email, nameChangesLeft: Math.max(0, NAME_CHANGES_PER_MONTH - account.name_changes) } : null,
     stats,
     unlocked,
     cups,
-    recent: rows.slice(-10).reverse().map((x) => ({ won: x.won, at: x.finished_at, humans: x.humans, rounds: x.rounds })),
+    recent: [], // pas d'historique détaillé des parties côté joueur (statistiques agrégées seulement)
   };
 }
 
@@ -148,6 +152,12 @@ export async function updateProfile(r: Row, patch: Record<string, unknown>) {
   if ("name" in patch) {
     const n = cleanName(patch.name);
     if (!n) throw new RuleError("Choisis un pseudo");
+    if (n.length < 2) throw new RuleError("Pseudo : 2 caractères minimum");
+    // comptes : 2 changements par mois civil (Paris), vérifié et compté en base
+    if (n !== r.name && (await accountOf(r.id))) {
+      const ok = await srv4<boolean>("name_change", { profile_id: r.id, month: parisMonth() });
+      if (!ok) throw new RuleError("Tu as déjà changé de pseudo 2 fois ce mois-ci");
+    }
     next.name = n;
   }
   if ("avatar" in patch) {
@@ -181,6 +191,10 @@ export async function photoOf(id: string) {
 }
 
 export async function addResults(rows: ResultRow[]) {
+  // invités : mode « à blanc », aucune statistique enregistrée
+  const kept: ResultRow[] = [];
+  for (const r of rows) if (await isMember(r.profile_id)) kept.push(r);
+  rows = kept;
   if (!rows.length) return;
   const { error } = await db().rpc("res_add", { p_secret: secret(), p_rows: rows.map(({ extra, ...x }) => (void extra, x)) });
   if (error) console.error("res_add", error.message);

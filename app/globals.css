@@ -859,6 +859,8 @@ input[type="number"] { max-width: 160px; }
 .a-xs { max-width: 54px; }
 .a-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 16px; }
 .ok-text { color: #9be77f; }
+.account-box p.ok { color: #9be77f; margin: 6px 0 0; }
+.link-btn { background: none; border: 0; padding: 0; color: #ffd45e; text-decoration: underline; cursor: pointer; align-self: flex-start; }
 .a-victory-preview { position: relative; height: 160px; width: 100%; overflow: hidden; border-radius: 12px; background: #1a0f22; }
 .a-victory-preview .vfx, .a-victory-preview .confetti { position: absolute; }
 

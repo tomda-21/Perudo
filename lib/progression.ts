@@ -32,9 +32,8 @@ export const cleanLogin = (x: unknown) => String(x ?? "").trim().toLowerCase();
 export const loginProblem = (l: string) => (LOGIN_RE.test(l) ? null : "Identifiant : 3 à 20 caractères (lettres, chiffres, . _ -)");
 export const playerPasswordProblem = (pw: string) => (pw.length < 8 ? "Le mot de passe doit faire au moins 8 caractères" : pw.length > 100 ? "Mot de passe trop long" : null);
 
-export async function accountOf(profileId: string) {
-  return srv2<{ login: string; created_at: string } | null>("acct_get", { profile_id: profileId });
-}
+import { accountOf } from "./account";
+export { accountOf };
 
 /** Transforme le profil invité de cet appareil en compte permanent (il garde ses stats). */
 export async function createAccount(profileId: string, login: string, password: string) {
@@ -104,6 +103,11 @@ export function gameReward(r: ResultRow, e: EconomyConfig) {
 export async function rewardGame(rows: ResultRow[]) {
   if (!rows.length) return;
   try {
+    // invités : rien n'est enregistré (ni compteurs, ni récompenses)
+    const members: ResultRow[] = [];
+    for (const r of rows) if (await accountOf(r.profile_id)) members.push(r);
+    rows = members;
+    if (!rows.length) return;
     const c = await publicContent();
     const e = c.economy;
     await srv2("extra_add", { rows: rows.map((r) => ({ game_id: r.game_id, profile_id: r.profile_id, phoenix: r.extra.phoenix, flawless: r.extra.flawless, bids: r.extra.bids })) });

@@ -30,7 +30,7 @@ export function lastName() {
 }
 
 // ---------- profil permanent (gardé sur cet appareil) ----------
-export type ProfileCreds = { id: string; key: string };
+export type ProfileCreds = { id: string; key: string; acct?: boolean }; // acct : profil d'un compte e-mail
 export function getProfileCreds(): ProfileCreds | null {
   try {
     const raw = localStorage.getItem("perudo:profile");
@@ -47,7 +47,7 @@ export type MyProfile = {
   unlocked: string[];
   cups: import("./content").CupItem[];
   recent: { won: boolean; at: string; humans: number; rounds: number }[];
-  account: { login: string; since: string } | null;
+  account: { login: string; since: string; email?: string | null; nameChangesLeft?: number } | null;
 };
 
 export type Progress = import("./progression-types").Progress;
@@ -55,7 +55,7 @@ export function forgetProfile() {
   try { localStorage.removeItem("perudo:profile"); } catch {}
 }
 
-async function call<T>(url: string, init: RequestInit & { token?: string; profile?: boolean } = {}): Promise<T> {
+async function call<T>(url: string, init: RequestInit & { token?: string; profile?: boolean; bearer?: string } = {}): Promise<T> {
   const prof = init.profile ? getProfileCreds() : null;
   const res = await fetch(url, {
     ...init,
@@ -63,6 +63,7 @@ async function call<T>(url: string, init: RequestInit & { token?: string; profil
       "content-type": "application/json",
       ...(init.token ? { "x-player-token": init.token } : {}),
       ...(prof ? { "x-profile-id": prof.id, "x-profile-key": prof.key } : {}),
+      ...(init.bearer ? { authorization: `Bearer ${init.bearer}` } : {}),
     },
     cache: "no-store",
   });
@@ -78,6 +79,7 @@ export const api = {
     call<{ code: string } & Session>(`/api/games/${code}/join`, { method: "POST", profile: true, body: JSON.stringify({ name }) }),
   /** Charge mon profil, ou le crée au premier passage. */
   async myProfile(name?: string): Promise<MyProfile> {
+    await syncAccount().catch(() => {});
     if (getProfileCreds()) {
       try { return await call<MyProfile>("/api/profile", { profile: true }); } catch {}
     }
@@ -90,10 +92,8 @@ export const api = {
   progress: () => call<Progress>("/api/progress", { profile: true }),
   progressAction: <T = unknown>(body: Record<string, unknown>) =>
     call<{ result: T; progress: Progress }>("/api/progress", { method: "POST", profile: true, body: JSON.stringify(body) }),
-  createAccount: (login: string, password: string) =>
-    call<{ ok: true }>("/api/account", { method: "POST", profile: true, body: JSON.stringify({ op: "create", login, password }) }),
-  login: (login: string, password: string) =>
-    call<ProfileCreds>("/api/account", { method: "POST", body: JSON.stringify({ op: "login", login, password }) }),
+  deleteAccount: (bearer: string) =>
+    call<{ ok: true }>("/api/account", { method: "POST", profile: true, bearer, body: JSON.stringify({ op: "delete", confirm: "SUPPRIMER" }) }),
   state: (code: string, token?: string) => call<PlayerView>(`/api/games/${code}`, { token }),
   action: (code: string, token: string, body: Record<string, unknown>) =>
     call<PlayerView>(`/api/games/${code}/action`, { method: "POST", token, body: JSON.stringify(body) }),
@@ -106,4 +106,40 @@ export function realtime() {
       auth: { persistSession: false },
     });
   return supa;
+}
+
+// ---------- compte e-mail (Supabase Auth : session gardée et rafraîchie dans ce navigateur) ----------
+let authClient: SupabaseClient | null = null;
+export function auth() {
+  if (!authClient)
+    authClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_KEY!, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit", storageKey: "perudo-auth" },
+    });
+  return authClient.auth;
+}
+
+/** Relie cet appareil au profil du compte connecté (ou revient en invité après déconnexion). */
+export async function syncAccount() {
+  const { data, error } = await auth().getSession();
+  if (error) return; // réseau : on ne touche à rien
+  const s = data.session;
+  const c = getProfileCreds();
+  if (s?.user.email_confirmed_at && !c?.acct) {
+    const r = await call<ProfileCreds>("/api/account", { method: "POST", bearer: s.access_token, body: JSON.stringify({ op: "session", name: lastName() }) });
+    saveProfileCreds({ id: r.id, key: r.key, acct: true });
+  } else if (!s && c?.acct) {
+    forgetProfile(); // session terminée : retour en invité
+  }
+}
+
+/** Messages Supabase → français. */
+export function authError(e: unknown) {
+  const m = String((e as Error)?.message ?? e ?? "");
+  if (/invalid login credentials/i.test(m)) return "E-mail ou mot de passe incorrect";
+  if (/email not confirmed/i.test(m)) return "Adresse e-mail pas encore confirmée : clique le lien reçu par e-mail";
+  if (/already registered|already been registered/i.test(m)) return "Un compte existe déjà avec cet e-mail";
+  if (/rate limit|too many|security purposes/i.test(m)) return "Trop de demandes : réessaie dans quelques minutes";
+  if (/password should be|weak password/i.test(m)) return "Mot de passe trop faible (8 caractères minimum)";
+  if (/invalid.*email|unable to validate email/i.test(m)) return "Adresse e-mail invalide";
+  return m || "Erreur réseau";
 }

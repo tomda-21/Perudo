@@ -23,15 +23,6 @@ export function useMyProfile() {
 }
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
-function ago(iso: string) {
-  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (m < 60) return `il y a ${Math.max(1, m)} min`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `il y a ${h} h`;
-  const d = Math.round(h / 24);
-  return d === 1 ? "hier" : `il y a ${d} jours`;
-}
-
 /** Réduit une photo à 160×160 (JPEG léger) avant l'envoi. */
 async function shrinkPhoto(file: File): Promise<string> {
   const url = URL.createObjectURL(file);
@@ -112,6 +103,7 @@ export function ProfileModal({ onClose, profile, prog }: { onClose: () => void; 
           {isAdmin && <a href="/admin" className="gbtn gbtn-purple gbtn-sm admin-entry">🛠 Ouvrir Perudo Admin</a>}
 
           <div className="section-title">Statistiques</div>
+          {!data.account && <p className="muted small">Invité : tes parties ne sont pas enregistrées. Crée un compte pour garder tes statistiques.</p>}
           <div className="stat-grid">
             <Stat icon="🎲" value={data.stats.played} label="Parties jouées" />
             <Stat icon="🏆" value={data.stats.wins} label="Victoires" />
@@ -119,8 +111,8 @@ export function ProfileModal({ onClose, profile, prog }: { onClose: () => void; 
             <Stat icon="📊" value={`${data.stats.rate}%`} label="Taux de victoire" />
           </div>
           <div className="stat-grid stat-grid-sm">
-            <Stat icon="🤥" value={data.stats.liarWins} label="« Menteur ! » réussis" />
-            <Stat icon="🎯" value={data.stats.exactWins} label="« Exact ! » réussis" />
+            <Stat icon="⚡" value={`${data.stats.liarWins}/${data.stats.liarCalls}${data.stats.liarCalls ? ` (${Math.round((data.stats.liarWins / data.stats.liarCalls) * 100)} %)` : ""}`} label="Dudo réussis / tentés" />
+            <Stat icon="🎯" value={`${data.stats.exactWins}/${data.stats.exactCalls}${data.stats.exactCalls ? ` (${Math.round((data.stats.exactWins / data.stats.exactCalls) * 100)} %)` : ""}`} label="Exact réussis / tentés" />
             <Stat icon="🔥" value={data.stats.bestWinStreak} label="Meilleure série" />
           </div>
           <div className="stat-grid stat-grid-sm">
@@ -129,20 +121,6 @@ export function ProfileModal({ onClose, profile, prog }: { onClose: () => void; 
             <Stat icon="🗣️" value={data.stats.bids ?? 0} label="Annonces" />
           </div>
 
-          <div className="section-title">Dernières parties</div>
-          {data.recent.length === 0 ? (
-            <p className="muted small">Aucune partie comptée pour l&apos;instant. Seules les parties avec au moins 2 vrais joueurs comptent (les parties seul contre des bots sont de l&apos;entraînement).</p>
-          ) : (
-            <ul className="recent">
-              {data.recent.map((r, i) => (
-                <li key={i} className={r.won ? "win" : "loss"}>
-                  <span>{r.won ? "🏆 Victoire" : "💀 Défaite"}</span>
-                  <span className="muted small">{r.humans} joueurs · {r.rounds} manches</span>
-                  <span className="muted small">{ago(r.at)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
           <HistoryList prog={prog} />
         </div>
       )}

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Modal } from "./Panel";
 import Avatar from "./Avatar";
 import Cup from "./Cup";
-import { api, forgetProfile, Progress, saveProfileCreds } from "@/lib/client";
+import { api, auth, authError, forgetProfile, Progress, syncAccount } from "@/lib/client";
 import type { SpinResult } from "@/lib/progression-types";
 import { useContent } from "@/lib/content-client";
 import { METRIC_LABEL } from "@/lib/economy";
@@ -42,60 +42,135 @@ function useCountdown(iso: string | null) {
   return { ms, text: h > 24 ? `${Math.floor(h / 24)} j ${h % 24} h` : `${h} h ${String(m).padStart(2, "0")} min ${String(s).padStart(2, "0")} s` };
 }
 
-// ---------- COMPTE (dans Mon profil) ----------
-export function AccountBox({ account, onChange }: { account: { login: string; since: string } | null; onChange: () => void }) {
-  const [mode, setMode] = useState<null | "create" | "login">(null);
-  const [login, setLogin] = useState("");
+// ---------- COMPTE (dans Mon profil) : e-mail + mot de passe ----------
+type Acc = { login: string; since: string; email?: string | null; nameChangesLeft?: number } | null;
+export function AccountBox({ account, onChange }: { account: Acc; onChange: () => void }) {
+  const [mode, setMode] = useState<null | "signup" | "login" | "forgot" | "delete">(null);
+  const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [name, setName] = useState("");
   const [msg, setMsg] = useState("");
+  const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
+  const back = `${location.origin}/`;
 
-  async function submit() {
-    setBusy(true); setMsg("");
-    try {
-      if (mode === "create") { await api.createAccount(login, pw); onChange(); setMode(null); }
-      else {
-        const c = await api.login(login, pw);
-        saveProfileCreds(c); // cet appareil utilise désormais le compte
-        location.reload();
-      }
-    } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+  async function run(fn: () => Promise<void>) {
+    setBusy(true); setMsg(""); setInfo("");
+    try { await fn(); } catch (e) { setMsg(authError(e)); } finally { setBusy(false); }
   }
+  const signup = () => run(async () => {
+    if (name.trim().length < 2) throw new Error("Choisis un pseudo (2 caractères minimum)");
+    if (pw.length < 8) throw new Error("Mot de passe : 8 caractères minimum");
+    if (pw !== pw2) throw new Error("Les deux mots de passe sont différents");
+    const { data, error } = await auth().signUp({ email: email.trim(), password: pw, options: { emailRedirectTo: back, data: { name: name.trim() } } });
+    if (error) throw error;
+    if (data.user && data.user.identities?.length === 0) throw new Error("Un compte existe déjà avec cet e-mail");
+    if (data.session) { await syncAccount(); location.reload(); return; }
+    setInfo(`E-mail de confirmation envoyé à ${email.trim()}. Clique le lien, puis connecte-toi ici.`);
+    setMode("login"); setPw(""); setPw2("");
+  });
+  const login = () => run(async () => {
+    const { error } = await auth().signInWithPassword({ email: email.trim(), password: pw });
+    if (error) throw error;
+    forgetProfile(); // cet appareil passe sur le profil du compte
+    await syncAccount();
+    location.reload();
+  });
+  const forgot = () => run(async () => {
+    const { error } = await auth().resetPasswordForEmail(email.trim(), { redirectTo: `${location.origin}/compte/mot-de-passe` });
+    if (error) throw error;
+    setInfo("Si un compte existe avec cet e-mail, un lien pour choisir un nouveau mot de passe vient d'être envoyé.");
+  });
+  const logout = () => run(async () => {
+    if (!confirm("Se déconnecter de cet appareil ?")) return;
+    await auth().signOut().catch(() => {});
+    forgetProfile(); location.reload();
+  });
+  const remove = () => run(async () => {
+    if (!account?.email) throw new Error("Compte introuvable");
+    if (name !== "SUPPRIMER") throw new Error("Écris SUPPRIMER pour confirmer");
+    // on redemande le mot de passe : jeton frais
+    const { data, error } = await auth().signInWithPassword({ email: account.email, password: pw });
+    if (error || !data.session) throw error ?? new Error("Mot de passe incorrect");
+    await api.deleteAccount(data.session.access_token);
+    await auth().signOut().catch(() => {});
+    forgetProfile(); location.reload();
+  });
+
+  const field = (v: string, set: (x: string) => void, ph: string, type = "text", ac = "off") =>
+    <input value={v} onChange={(e) => set(e.target.value)} placeholder={ph} type={type} autoComplete={ac} />;
+  const actions = (ok: string) => (
+    <div className="row-wrap">
+      <button className="gbtn gbtn-gold gbtn-sm" disabled={busy} type="submit">{ok}</button>
+      <button type="button" className="gbtn gbtn-dark gbtn-sm" onClick={() => { setMode(null); setMsg(""); setInfo(""); }}>Annuler</button>
+    </div>
+  );
 
   if (account) {
     return (
       <div className="account-box">
-        <div>✅ Compte <b>{account.login}</b> — ta progression est sauvegardée et disponible sur tous tes appareils.</div>
-        <button className="gbtn gbtn-dark gbtn-sm" onClick={() => {
-          if (!confirm("Se déconnecter de cet appareil ? Tu pourras te reconnecter avec ton identifiant et ton mot de passe.")) return;
-          forgetProfile(); location.reload();
-        }}>Se déconnecter</button>
+        {mode !== "delete" ? <>
+          <div>✅ Compte connecté — ta progression est sauvegardée sur tous tes appareils.</div>
+          <div className="muted small">
+            E-mail (privé) : <b>{account.email ?? "—"}</b> · Identifiant public : <b>#{account.login}</b>
+            {account.nameChangesLeft !== undefined && <> · Changements de pseudo restants ce mois-ci : <b>{account.nameChangesLeft}</b></>}
+          </div>
+          <div className="row-wrap">
+            <button className="gbtn gbtn-dark gbtn-sm" disabled={busy} onClick={logout}>Se déconnecter</button>
+            <button className="gbtn gbtn-dark gbtn-sm" onClick={() => { setMode("delete"); setName(""); setPw(""); }}>Supprimer mon compte</button>
+          </div>
+        </> : (
+          <form className="account-form" onSubmit={(e) => { e.preventDefault(); remove(); }}>
+            <b>Supprimer définitivement mon compte</b>
+            <p className="muted small">Doblons, XP, niveaux, succès, statistiques et collection seront effacés. C&apos;est irréversible.</p>
+            {field(pw, setPw, "Mon mot de passe", "password", "current-password")}
+            {field(name, setName, "Écris SUPPRIMER")}
+            {actions("Supprimer")}
+          </form>
+        )}
+        {msg && <p className="error">{msg}</p>}
       </div>
     );
   }
   return (
     <div className="account-box guest">
       {!mode && <>
-        <div>👤 Tu joues en <b>invité</b> : pas de Doblons, pas d&apos;XP ni de gobelets d&apos;exploit. Crée un compte gratuit pour garder ta progression (tes stats actuelles sont conservées).</div>
+        <div>👤 Tu joues en <b>invité</b> : rien n&apos;est sauvegardé (pas de Doblons, d&apos;XP, de stats ni de collection). Crée un compte gratuit avec ton e-mail pour garder ta progression.</div>
         <div className="row-wrap">
-          <button className="gbtn gbtn-gold gbtn-sm" onClick={() => setMode("create")}>Créer mon compte</button>
-          <button className="gbtn gbtn-dark gbtn-sm" onClick={() => setMode("login")}>J&apos;ai déjà un compte</button>
+          <button className="gbtn gbtn-gold gbtn-sm" onClick={() => setMode("signup")}>Créer mon compte</button>
+          <button className="gbtn gbtn-dark gbtn-sm" onClick={() => setMode("login")}>Me connecter</button>
         </div>
       </>}
-      {mode && (
-        <form className="account-form" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-          <b>{mode === "create" ? "Créer mon compte" : "Me connecter"}</b>
-          <input value={login} onChange={(e) => setLogin(e.target.value)} placeholder="Identifiant (ex. tom_21)" autoComplete="username" maxLength={20} />
-          <input value={pw} onChange={(e) => setPw(e.target.value)} type="password" placeholder="Mot de passe (8 caractères min.)" autoComplete={mode === "create" ? "new-password" : "current-password"} />
-          {mode === "login" && <p className="muted small">Ce téléphone/ordinateur utilisera ton compte (le profil invité actuel de cet appareil sera laissé de côté).</p>}
-          {mode === "create" && <p className="muted small">Pas d&apos;e-mail demandé. Note bien ton mot de passe : il ne peut pas être récupéré pour l&apos;instant (l&apos;admin peut t&apos;aider).</p>}
-          <div className="row-wrap">
-            <button className="gbtn gbtn-gold gbtn-sm" disabled={busy}>{mode === "create" ? "Créer" : "Connexion"}</button>
-            <button type="button" className="gbtn gbtn-dark gbtn-sm" onClick={() => { setMode(null); setMsg(""); }}>Annuler</button>
-          </div>
-          {msg && <p className="error">{msg}</p>}
+      {mode === "signup" && (
+        <form className="account-form" onSubmit={(e) => { e.preventDefault(); signup(); }}>
+          <b>Créer mon compte</b>
+          {field(name, setName, "Pseudo affiché", "text", "nickname")}
+          {field(email, setEmail, "Adresse e-mail", "email", "email")}
+          {field(pw, setPw, "Mot de passe (8 caractères min.)", "password", "new-password")}
+          {field(pw2, setPw2, "Confirme le mot de passe", "password", "new-password")}
+          <p className="muted small">Ta progression d&apos;invité n&apos;est pas reprise : le compte démarre à zéro.</p>
+          {actions("Créer")}
         </form>
       )}
+      {mode === "login" && (
+        <form className="account-form" onSubmit={(e) => { e.preventDefault(); login(); }}>
+          <b>Me connecter</b>
+          {field(email, setEmail, "Adresse e-mail", "email", "email")}
+          {field(pw, setPw, "Mot de passe", "password", "current-password")}
+          <button type="button" className="link-btn small" onClick={() => { setMode("forgot"); setMsg(""); }}>Mot de passe oublié ?</button>
+          {actions("Connexion")}
+        </form>
+      )}
+      {mode === "forgot" && (
+        <form className="account-form" onSubmit={(e) => { e.preventDefault(); forgot(); }}>
+          <b>Mot de passe oublié</b>
+          {field(email, setEmail, "Adresse e-mail du compte", "email", "email")}
+          {actions("Recevoir le lien")}
+        </form>
+      )}
+      {info && <p className="ok small">{info}</p>}
+      {msg && <p className="error">{msg}</p>}
     </div>
   );
 }
