@@ -210,7 +210,7 @@ function ledgerLabel(l: { kind: string; detail: Record<string, unknown> | null }
   switch (l.kind) {
     case "game": return d.won ? "Victoire" : "Partie terminée";
     case "level": return `Palier du niveau ${d.level ?? ""}`;
-    case "chest": return `${d.name ?? "Coffre"} : ${d.item ?? (d.compensated ? "compensation" : "fragment")}`;
+    case "chest": return `${d.name ?? "Coffre"} : ${d.item ?? (d.converted ? "fragment converti" : d.comp || d.compensated ? "compensation" : "fragment universel")}`;
     case "challenge": return `Défi : ${d.name ?? ""}`;
     case "wheel": return `Roue : ${d.label ?? ""}${Number(d.compensated) ? " (doublon compensé)" : ""}`;
     case "shop": return `Achat : ${d.name ?? ""}`;
@@ -312,7 +312,7 @@ export async function openChest(profileId: string, chestId: string) {
   const res = await srv5<"funds" | { ok: true; compensated: number }>("chest_open", {
     profile_id: profileId, price: chest.price, doblons, fragments, compensation: chest.compensation,
     item: item ? { type: item.type, id: item.id } : null,
-    detail: { chest: chest.id, name: chest.name, cat, item: item?.name ?? null, type: item?.type ?? null },
+    detail: { chest: chest.id, name: chest.name, cat, item: item?.name ?? null, type: item?.type ?? null, comp: compensated ? doblons : 0, converted },
   });
   if (res === "funds") throw new RuleError("Pas assez de Doblons");
   const late = res.compensated > 0; // objet obtenu entre-temps : compensé
