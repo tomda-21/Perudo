@@ -1,0 +1,23 @@
+# PERUDO V1.0 — suivi des travaux
+
+Référence : cahier des charges « Prompt maître V1.0 » (5 nov. 2026).
+Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
+
+## Architecture (rappel)
+- Next.js 15 (App Router) + React 19, hébergé sur Vercel ; base Supabase (Postgres, schéma `private`, accès uniquement via fonctions `srv`/`srv2`/`srv3` protégées par `APP_SECRET`).
+- Moteur de jeu : `lib/rules.ts` (états), `lib/bids.ts` (règles d'enchères, partagées client/serveur), `lib/bot.ts`.
+- Partie : `app/api/games/*` (serveur autoritaire), `app/partie/[code]/page.tsx`, `components/GameStage.tsx`, `components/GameBar.tsx`.
+- Comptes/progression : `lib/profiles.ts`, `lib/progression.ts`, `lib/economy.ts`, `app/api/account`, `app/api/progress`.
+- Admin : `app/admin`, `app/api/admin`, `components/admin/*`, `lib/admin.ts`.
+- Tests : `tests/*.test.ts` (66, `tsx --test`) + simulateur navigateur hors dépôt.
+
+## Plan (ordre de priorité)
+- [ ] P1 Moteur : Palifico (valeur verrouillée, ouverture Pax), Exact (restrictions, hors tour), 2–6 joueurs, chrono 30 s serveur, relais bot à 60 s, dés perdus.
+- [ ] P2 Comptes : e-mail + mot de passe (Supabase Auth), vérif. e-mail, mot de passe oublié, suppression ; invités à blanc ; pseudo 2×/mois ; identifiant public ; admin lié au compte.
+- [ ] P3 Interface : dés perso permanents, mobile paysage, zooms, Palifico/élimination, gobelin commentateur, retrait anti-spam, volumes séparés, couper un joueur.
+- [ ] P4 Maps : 8 maps (3 nouvelles), décors HD manquants (fournis par Tom).
+- [ ] P5 Progression : nouveaux gains, formule de niveau, paliers, 3 défis/j + 1 hebdo, classements amis, succès.
+- [ ] P6 Boutique : coffres (3 niveaux, tirage serveur atomique), prestige, pack de base gratuit, roue (nouveaux lots), fragments au choix.
+- [ ] P7 Admin : droits cosmétiques admin, XP/objets aux joueurs (jamais à soi), coffres/probabilités.
+- [ ] P8 Social : amis, invitations, présence, blocage/signalement, notifications.
+- [ ] P9 PWA + validation finale.
