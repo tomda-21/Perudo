@@ -14,25 +14,32 @@ export type WheelPrize = {
   active: boolean;
 };
 export type Title = { id: string; name: string; cond: { type: "level"; n: number } | { type: "cup"; id: string } };
+/** Palier de niveau : récompense versée une seule fois (Doblons + éventuellement un cadre). */
+export type LevelReward = { level: number; doblons: number; frame?: string | null };
 
 export type EconomyConfig = {
-  rewards: { complete: Reward; win: Reward; liar: Reward; exact: Reward; dailyChallenge: number; weeklyChallenge: number };
+  rewards: { complete: Reward; win: Reward; liar: Reward; exact: Reward; dailyChallenge: number; weeklyChallenge: number; dailyChallengeXp: number; weeklyChallengeXp: number };
   limits: { liarPerGame: number; exactPerGame: number };
   official: { minHumans: number; minRounds: number; allowBots: boolean };
   wheel: { cooldownHours: number; duplicateDoblons: number; prizes: WheelPrize[] };
   fragments: { needed: number; allOwnedDoblons: number };
-  levels: { base: number; step: number };
+  levels: { base: number; step: number; quad: number };
+  levelRewards: LevelReward[];
+  /** Après le dernier palier : quelques Doblons tous les `every` niveaux. */
+  levelAfter: { every: number; doblons: number };
   titles: Title[];
 };
 
 export const DEFAULT_ECONOMY: EconomyConfig = {
   rewards: {
-    complete: { doblons: 40, xp: 60 }, win: { doblons: 60, xp: 100 },
-    liar: { doblons: 10, xp: 15 }, exact: { doblons: 15, xp: 20 },
-    dailyChallenge: 40, weeklyChallenge: 150,
+    // gains définitifs (cahier des charges V1.0, § 40)
+    complete: { doblons: 20, xp: 40 }, win: { doblons: 35, xp: 70 },
+    liar: { doblons: 5, xp: 10 }, exact: { doblons: 10, xp: 15 },
+    dailyChallenge: 25, weeklyChallenge: 100, dailyChallengeXp: 30, weeklyChallengeXp: 120,
   },
   limits: { liarPerGame: 3, exactPerGame: 2 },
-  official: { minHumans: 2, minRounds: 3, allowBots: false },
+  // toute partie terminée compte, bots compris (les invités ne gagnent rien)
+  official: { minHumans: 1, minRounds: 1, allowBots: true },
   wheel: {
     cooldownHours: 24, duplicateDoblons: 100,
     prizes: [
@@ -45,14 +52,21 @@ export const DEFAULT_ECONOMY: EconomyConfig = {
     ],
   },
   fragments: { needed: 6, allOwnedDoblons: 500 },
-  levels: { base: 120, step: 60 },
+  // XP pour passer du niveau n à n+1 : 100 + 30 × (n − 1) + (n − 1)²
+  levels: { base: 100, step: 30, quad: 1 },
+  levelRewards: [
+    { level: 5, doblons: 25 },
+    { level: 10, doblons: 50 }, // + titre « Apprenti du bluff »
+    { level: 20, doblons: 100, frame: "bronze-gobelin" },
+    { level: 30, doblons: 150 }, // + titre « Maître des dés »
+    { level: 50, doblons: 250, frame: "gold-anim" },
+  ],
+  levelAfter: { every: 10, doblons: 100 },
   titles: [
     { id: "t1", name: "Débutant du bluff", cond: { type: "level", n: 1 } },
-    { id: "t2", name: "Apprenti menteur", cond: { type: "level", n: 3 } },
-    { id: "t3", name: "Bluffeur confirmé", cond: { type: "level", n: 6 } },
-    { id: "t4", name: "Menteur professionnel", cond: { type: "level", n: 10 } },
+    { id: "t-apprenti", name: "Apprenti du bluff", cond: { type: "level", n: 10 } },
+    { id: "t-maitre", name: "Maître des dés", cond: { type: "level", n: 30 } },
     { id: "t5", name: "Détecteur de mythos", cond: { type: "cup", id: "detective" } },
-    { id: "t6", name: "Roi du bluff", cond: { type: "level", n: 20 } },
     { id: "t7", name: "Phénix renaissant", cond: { type: "cup", id: "phoenix" } },
     { id: "t8", name: "L'Invincible", cond: { type: "cup", id: "invincible" } },
   ],
@@ -60,11 +74,20 @@ export const DEFAULT_ECONOMY: EconomyConfig = {
 
 // ---------- niveaux ----------
 /** XP nécessaire pour passer du niveau L au niveau L+1. */
-export const xpStep = (c: EconomyConfig, level: number) => c.levels.base + c.levels.step * (level - 1);
+export const xpStep = (c: EconomyConfig, level: number) =>
+  c.levels.base + c.levels.step * (level - 1) + (c.levels.quad ?? 0) * (level - 1) ** 2;
 export function levelOf(c: EconomyConfig, xp: number) {
   let level = 1, rest = xp;
-  while (rest >= xpStep(c, level) && level < 999) { rest -= xpStep(c, level); level++; }
+  while (rest >= xpStep(c, level) && level < 100000) { rest -= xpStep(c, level); level++; } // niveaux illimités
   return { level, into: rest, need: xpStep(c, level) };
+}
+/** Paliers atteints au niveau `level` (chacun versé une seule fois, clé `level:N`). */
+export function levelRewardsUpTo(c: EconomyConfig, level: number): LevelReward[] {
+  const list = c.levelRewards.filter((r) => r.level <= level);
+  const last = Math.max(0, ...c.levelRewards.map((r) => r.level));
+  if (c.levelAfter.every > 0 && c.levelAfter.doblons > 0)
+    for (let n = last + c.levelAfter.every; n <= level; n += c.levelAfter.every) list.push({ level: n, doblons: c.levelAfter.doblons });
+  return list;
 }
 export function titlesUnlocked(c: EconomyConfig, level: number, cups: string[]) {
   return c.titles.filter((t) => (t.cond.type === "level" ? level >= t.cond.n : cups.includes(t.cond.id)));
@@ -112,12 +135,18 @@ export function cleanEconomy(x: Record<string, unknown>): EconomyConfig {
     rewards: {
       complete: rew(r.complete, D.rewards.complete), win: rew(r.win, D.rewards.win), liar: rew(r.liar, D.rewards.liar), exact: rew(r.exact, D.rewards.exact),
       dailyChallenge: int(r.dailyChallenge, 0, 100000, D.rewards.dailyChallenge), weeklyChallenge: int(r.weeklyChallenge, 0, 100000, D.rewards.weeklyChallenge),
+      dailyChallengeXp: int(r.dailyChallengeXp, 0, 100000, D.rewards.dailyChallengeXp), weeklyChallengeXp: int(r.weeklyChallengeXp, 0, 100000, D.rewards.weeklyChallengeXp),
     },
     limits: { liarPerGame: int(l.liarPerGame, 0, 50, 3), exactPerGame: int(l.exactPerGame, 0, 50, 2) },
-    official: { minHumans: int(o.minHumans, 2, 8, 2), minRounds: int(o.minRounds, 1, 50, 3), allowBots: o.allowBots === true },
+    official: { minHumans: int(o.minHumans, 1, 6, 1), minRounds: int(o.minRounds, 1, 50, 1), allowBots: o.allowBots !== false },
     wheel: { cooldownHours: int(w.cooldownHours, 1, 168, 24), duplicateDoblons: int(w.duplicateDoblons, 0, 100000, 100), prizes },
     fragments: { needed: int(f.needed, 1, 100, 6), allOwnedDoblons: int(f.allOwnedDoblons, 0, 100000, 500) },
-    levels: { base: int(lv.base, 10, 100000, 120), step: int(lv.step, 0, 100000, 60) },
+    levels: { base: int(lv.base, 10, 100000, 100), step: int(lv.step, 0, 100000, 30), quad: int(lv.quad, 0, 1000, 1) },
+    levelRewards: (Array.isArray(x.levelRewards) ? x.levelRewards : D.levelRewards).slice(0, 40).map((q) => {
+      const o2 = q as Record<string, unknown>;
+      return { level: int(o2.level, 2, 100000, 5), doblons: int(o2.doblons, 0, 100000, 0), frame: o2.frame ? String(o2.frame).slice(0, 30) : null };
+    }).sort((a, b) => a.level - b.level),
+    levelAfter: { every: int((x.levelAfter as Record<string, unknown> | undefined)?.every, 0, 1000, D.levelAfter.every), doblons: int((x.levelAfter as Record<string, unknown> | undefined)?.doblons, 0, 100000, D.levelAfter.doblons) },
     titles,
   };
 }
@@ -135,8 +164,8 @@ export function drawPrize(prizes: WheelPrize[], rnd: number): WheelPrize {
 export type ChallengeMetric = "games" | "wins" | "liarWins" | "exactWins" | "bids";
 export type ChallengeItem = { id: string; name: string; period: "daily" | "weekly"; metric: ChallengeMetric; target: number; doblons: number; fragments: number };
 export const METRIC_LABEL: Record<ChallengeMetric, string> = {
-  games: "parties officielles terminées", wins: "victoires officielles", liarWins: "« Menteur ! » réussis",
-  exactWins: "« Exact ! » réussis", bids: "annonces valides",
+  games: "parties terminées", wins: "victoires", liarWins: "Dudo réussis",
+  exactWins: "Exact réussis", bids: "annonces valides",
 };
 
 /** Fuseau de référence des défis : Europe/Paris (minuit, et lundi minuit pour la semaine). */

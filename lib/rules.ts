@@ -233,9 +233,9 @@ export function leaveGame(s: GameState, playerId: string) {
   }
 }
 
-/** Une partie compte dans les stats seulement avec au moins 2 vrais joueurs. */
+/** Toute partie terminée compte (bots compris) ; seuls les comptes enregistrent quelque chose (filtré côté serveur). */
 export const countsForStats = (s: GameState) =>
-  !s.abandoned && s.players.filter((p) => !p.isBot && p.profileId).length >= 2;
+  !s.abandoned && s.players.filter((p) => !p.isBot && p.profileId).length >= 1;
 
 export type ResultRow = {
   game_id: string; profile_id: string; won: boolean; humans: number; rounds: number;

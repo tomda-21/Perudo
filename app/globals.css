@@ -831,6 +831,10 @@ input[type="number"] { max-width: 160px; }
 .frame-fire { background: conic-gradient(#ffd23a, #ff5a1f, #b3120a, #ff5a1f, #ffd23a); box-shadow: 0 0 14px rgba(255,90,31,0.9); animation: flicker 1.2s infinite; }
 .frame-ice { background: linear-gradient(135deg, #e8fbff, #6fd3ff, #c8f1ff); box-shadow: 0 0 12px rgba(111,211,255,0.8); }
 .frame-rainbow { background: conic-gradient(red, orange, yellow, lime, cyan, blue, violet, red); animation: spin-hue 4s linear infinite; }
+.frame-bronze { background: conic-gradient(#f3c08a, #9a5a24, #e7a76a, #6b3a14, #f3c08a); box-shadow: 0 0 10px rgba(200,120,50,0.7); }
+.frame-goldanim { background: conic-gradient(from var(--fa, 0deg), #fff7c2, #f0b31c, #fff7c2, #b97a05, #fff7c2); box-shadow: 0 0 16px rgba(255,210,80,0.9); animation: goldspin 3s linear infinite; }
+@property --fa { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes goldspin { to { --fa: 360deg; } }
 .frame-jungle { background: repeating-conic-gradient(#2f9a2a 0 20deg, #8ad13a 20deg 40deg); box-shadow: 0 0 10px rgba(80,180,60,0.7); }
 @keyframes spin-hue { to { filter: hue-rotate(360deg); } }
 .seat-portrait.frame { padding: 4px; }
@@ -849,7 +853,7 @@ input[type="number"] { max-width: 160px; }
 @keyframes vshoot { from { transform: translate(-20vw, 0) rotate(-20deg); opacity: 0; } 20% { opacity: 1; } to { transform: translate(60vw, 30vh); opacity: 0; } }
 .vfx-firework { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: hsl(var(--hue), 100%, 60%); animation: vboom ease-out infinite; box-shadow: 0 0 0 0 hsl(var(--hue), 100%, 60%); }
 @keyframes vboom { 0% { transform: scale(.2); box-shadow: 0 0 0 0 hsl(var(--hue) 100% 60% / 1), 0 0 0 0 hsl(var(--hue) 100% 75% / 1); opacity: 1; } 70% { opacity: 1; } 100% { transform: scale(1); box-shadow: 0 0 0 60px hsl(var(--hue) 100% 60% / 0), 0 0 0 110px hsl(var(--hue) 100% 75% / 0); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .vfx span, .reaction-pop, .tile-glow, .frame-rainbow, .frame-fire { animation-duration: 0s !important; animation-iteration-count: 1 !important; } }
+@media (prefers-reduced-motion: reduce) { .vfx span, .reaction-pop, .tile-glow, .frame-rainbow, .frame-fire, .frame-goldanim { animation-duration: 0s !important; animation-iteration-count: 1 !important; } }
 /* admin V3 */
 .a-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .a-table th { text-align: left; color: var(--muted); font-weight: 800; padding: 4px; }

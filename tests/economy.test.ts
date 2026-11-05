@@ -27,11 +27,15 @@ test("roue : le tirage pondéré respecte les poids", () => {
 });
 
 test("niveaux et titres", () => {
-  assert.deepEqual(levelOf(DEFAULT_ECONOMY, 0), { level: 1, into: 0, need: 120 });
-  assert.equal(levelOf(DEFAULT_ECONOMY, 120).level, 2);
-  assert.equal(levelOf(DEFAULT_ECONOMY, 120 + 180).level, 3);
-  const t = titlesUnlocked(DEFAULT_ECONOMY, 3, ["phoenix"]).map((x) => x.id);
-  assert.deepEqual(t, ["t1", "t2", "t7"]);
+  // 100 + 30 × (n − 1) + (n − 1)² : 100, 131, 164, 199…
+  assert.deepEqual(levelOf(DEFAULT_ECONOMY, 0), { level: 1, into: 0, need: 100 });
+  assert.equal(levelOf(DEFAULT_ECONOMY, 99).level, 1);
+  assert.equal(levelOf(DEFAULT_ECONOMY, 100).level, 2);
+  assert.deepEqual(levelOf(DEFAULT_ECONOMY, 100 + 131), { level: 3, into: 0, need: 164 });
+  assert.equal(levelOf(DEFAULT_ECONOMY, 100 + 131 + 164 + 199).level, 5);
+  assert.ok(levelOf(DEFAULT_ECONOMY, 50_000_000).level > 500, "niveaux illimités");
+  assert.deepEqual(titlesUnlocked(DEFAULT_ECONOMY, 9, ["phoenix"]).map((x) => x.id), ["t1", "t7"]);
+  assert.deepEqual(titlesUnlocked(DEFAULT_ECONOMY, 30, []).map((x) => x.name), ["Débutant du bluff", "Apprenti du bluff", "Maître des dés"]);
 });
 
 test("défis : 3 par période, identiques pour tout le monde, Exact exclu si désactivé", () => {
@@ -76,7 +80,8 @@ test("boutique : les 6 phrases d'origine restent gratuites, prix du brief", () =
   assert.ok(DEFAULT_CONTENT.phrases.filter((p) => p.price).every((p) => p.price === 200));
   assert.ok(DEFAULT_CONTENT.sounds.filter((p) => p.price).every((p) => p.price === 300));
   assert.ok(DEFAULT_CONTENT.reactions.filter((p) => p.price).every((p) => p.price === 350));
-  assert.ok(DEFAULT_CONTENT.frames.every((p) => p.price === 600));
+  assert.ok(DEFAULT_CONTENT.frames.filter((p) => !p.reward).every((p) => p.price === 600));
+  assert.ok(DEFAULT_CONTENT.frames.filter((p) => p.reward).every((p) => p.price === 0), "cadres de palier : jamais vendus");
   assert.ok(DEFAULT_CONTENT.victories.filter((p) => p.price).every((p) => p.price === 1200));
 });
 

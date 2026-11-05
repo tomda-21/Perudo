@@ -30,3 +30,10 @@ export async function srv4<T = unknown>(op: string, args: Record<string, unknown
   if (error) throw new Error(`srv4 ${op}: ${error.message}`);
   return data as T;
 }
+
+/** Progression : objets gagnés (paliers), statistiques pour les classements. */
+export async function srv5<T = unknown>(op: string, args: Record<string, unknown> = {}): Promise<T> {
+  const { data, error } = await db().rpc("srv5", { p_secret: process.env.APP_SECRET!, p_op: op, p_args: args });
+  if (error) throw new Error(`srv5 ${op}: ${error.message}`);
+  return data as T;
+}

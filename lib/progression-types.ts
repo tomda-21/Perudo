@@ -3,7 +3,9 @@ import type { ChallengeMetric, Title } from "./economy";
 
 export type PublicPrize = { id: string; label: string; icon: string; weight: number };
 export type PublicEconomy = {
-  rewards: { complete: { doblons: number; xp: number }; win: { doblons: number; xp: number }; liar: { doblons: number; xp: number }; exact: { doblons: number; xp: number }; dailyChallenge: number; weeklyChallenge: number };
+  rewards: { complete: { doblons: number; xp: number }; win: { doblons: number; xp: number }; liar: { doblons: number; xp: number }; exact: { doblons: number; xp: number }; dailyChallenge: number; weeklyChallenge: number; dailyChallengeXp: number; weeklyChallengeXp: number };
+  levelRewards: { level: number; doblons: number; frame?: string | null }[];
+  levelAfter: { every: number; doblons: number };
   limits: { liarPerGame: number; exactPerGame: number };
   official: { minHumans: number; minRounds: number; allowBots: boolean };
   fragments: { needed: number; allOwnedDoblons: number };
@@ -11,7 +13,7 @@ export type PublicEconomy = {
 };
 export type ChallengeView = {
   id: string; name: string; period: "daily" | "weekly"; metric: ChallengeMetric; target: number;
-  have: number; done: boolean; doblons: number; fragments: number; ends: string;
+  have: number; done: boolean; doblons: number; xp: number; fragments: number; ends: string;
 };
 export type Owned = { phrase: string[]; sound: string[]; reaction: string[]; frame: string[]; victory: string[]; cup: string[] };
 export type Progress =

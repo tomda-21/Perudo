@@ -138,7 +138,7 @@ function Stat({ icon, value, label }: { icon: string; value: number | string; la
 }
 
 // ---------- MES GOBELETS ----------
-type CupTab = "exploit" | "mystery" | "shop";
+type CupTab = "classic" | "exploit" | "mystery" | "shop";
 export function CupsModal({ onClose, profile, prog, openShop }: { onClose: () => void; profile: ReturnType<typeof useMyProfile>; prog: ProgressState; openShop?: () => void }) {
   const { data, setData, error } = profile;
   const [msg, setMsg] = useState("");
@@ -159,7 +159,8 @@ export function CupsModal({ onClose, profile, prog, openShop }: { onClose: () =>
       setMsg(r.result.cup ? `🎁 Nouveau gobelet : ${r.result.cup} !` : `Tu as déjà tous les mystères : +${r.result.doblons} Doblons.`);
     } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
   }
-  const cat = (c: CupItem) => c.category ?? "exploit";
+  // 4 catégories : Classique, Exploits, Mystères, Prestige (boutique)
+  const cat = (c: CupItem) => (c.cond?.type === "none" && (c.category ?? "exploit") === "exploit" ? "classic" : c.category ?? "exploit");
   const list = (data?.cups ?? []).filter((c) => cat(c) === tab);
   const need = p?.economy.fragments.needed ?? 6;
   return (
@@ -167,11 +168,12 @@ export function CupsModal({ onClose, profile, prog, openShop }: { onClose: () =>
       {!data ? <p className="muted">{error || "Chargement…"}</p> : (
         <>
           <div className="tabs">
+            <button className={tab === "classic" ? "on" : ""} onClick={() => setTab("classic")}>🪵 Classique</button>
             <button className={tab === "exploit" ? "on" : ""} onClick={() => setTab("exploit")}>🏅 Exploits</button>
             <button className={tab === "mystery" ? "on" : ""} onClick={() => setTab("mystery")}>🎁 Mystères</button>
-            <button className={tab === "shop" ? "on" : ""} onClick={() => setTab("shop")}>🛒 Boutique</button>
+            <button className={tab === "shop" ? "on" : ""} onClick={() => setTab("shop")}>👑 Prestige</button>
           </div>
-          {!member && <p className="guest-note">👤 En invité, seul le gobelet Classique est disponible. Crée un compte dans <b>Mon profil</b> : tes parties déjà jouées comptent tout de suite pour les exploits.</p>}
+          {!member && <p className="guest-note">👤 En invité, seul le gobelet Classique est disponible. Crée un compte dans <b>Mon profil</b> pour débloquer les exploits en jouant (la progression d&apos;invité n&apos;est pas reprise).</p>}
           {tab === "mystery" && member && p?.member && (
             <div className="frag-box">
               <span>🧩 Fragments : <b>{p.fragments} / {need}</b></span>

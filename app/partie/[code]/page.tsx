@@ -331,7 +331,7 @@ export default function GamePage() {
               {!view.abandoned && (prog?.member
                 ? gain && (gain.doblons > 0 || gain.xp > 0)
                   ? <div className="gain-row"><span className="coin-pill">🪙 +{gain.doblons}</span><span className="xp-pill">✨ +{gain.xp} XP</span></div>
-                  : gain && <p className="muted small">Partie non officielle : pas de Doblons (il faut au moins {prog.economy.official.minHumans} vrais joueurs, {prog.economy.official.minRounds} manches{prog.economy.official.allowBots ? "" : ", sans bot"}).</p>
+                  : gain && <p className="muted small">Pas de récompense pour cette partie (déjà versée, ou partie quittée avant la fin).</p>
                 : prog && <p className="muted small">💡 Crée un compte (Mon profil) pour gagner des Doblons et de l&apos;XP à chaque partie.</p>)}
               <ul className="final-ranks">
                 {[...view.players].sort((a, b) => (b.id === view.winnerId ? 1 : 0) - (a.id === view.winnerId ? 1 : 0) || b.diceCount - a.diceCount).map((p) => (

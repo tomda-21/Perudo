@@ -9,7 +9,7 @@ import { createHash, randomBytes, randomInt } from "crypto";
 import { checkPassword, hashPassword } from "./admin";
 import { publicContent } from "./content-server";
 import type { CupItem, PublicContent } from "./content";
-import { drawPrize, EconomyConfig, levelOf, periodEnd, periodKeys, pickChallenges, titlesUnlocked, ChallengeItem } from "./economy";
+import { drawPrize, EconomyConfig, levelOf, levelRewardsUpTo, periodEnd, periodKeys, pickChallenges, titlesUnlocked, ChallengeItem } from "./economy";
 import { ResultRow, RuleError } from "./rules";
 import { srv, srv2 } from "./srv";
 
@@ -64,12 +64,12 @@ export async function deviceKeyOwner(key: string) {
 }
 
 // ---------------- possession des objets ----------------
-export function catalogOf(c: PublicContent, type: ItemType): { id: string; name: string; price: number }[] {
+export function catalogOf(c: PublicContent, type: ItemType): { id: string; name: string; price: number; reward?: boolean }[] {
   switch (type) {
     case "phrase": return c.phrases.map((x) => ({ id: x.id, name: x.text, price: x.price ?? 0 }));
     case "sound": return c.sounds.map((x) => ({ id: x.id, name: x.label, price: x.price ?? 0 }));
     case "reaction": return c.reactions.map((x) => ({ id: x.id, name: `${x.emoji} ${x.label}`, price: x.price }));
-    case "frame": return c.frames.map((x) => ({ id: x.id, name: x.name, price: x.price }));
+    case "frame": return c.frames.map((x) => ({ id: x.id, name: x.name, price: x.price, reward: !!x.reward }));
     case "victory": return c.victories.map((x) => ({ id: x.id, name: x.name, price: x.price }));
     case "cup": return c.cups.filter((x) => x.category === "shop").map((x) => ({ id: x.id, name: x.name, price: x.price ?? 0 }));
   }
@@ -77,7 +77,8 @@ export function catalogOf(c: PublicContent, type: ItemType): { id: string; name:
 const owns = (inv: Inv[], type: ItemType, id: string) => inv.some((i) => i.type === type && i.id === id);
 /** Objets gratuits + objets achetés/gagnés. */
 export function ownedIds(c: PublicContent, inv: Inv[], type: Exclude<ItemType, "cup">) {
-  return catalogOf(c, type).filter((x) => x.price === 0 || owns(inv, type, x.id)).map((x) => x.id);
+  // gratuits (sauf objets de palier, qui se gagnent) + achetés / gagnés
+  return catalogOf(c, type).filter((x) => (x.price === 0 && !x.reward) || owns(inv, type, x.id)).map((x) => x.id);
 }
 
 export async function wallet(profileId: string) {
@@ -119,6 +120,7 @@ export async function rewardGame(rows: ResultRow[]) {
       const fresh = await srv2<boolean>("grant", { profile_id: r.profile_id, event_id: `game:${r.game_id}`, kind: "game", doblons: g.doblons, xp: g.xp, detail: g.detail });
       if (!fresh) continue; // déjà récompensé
       await advanceChallenges(r.profile_id, c, { games: 1, wins: r.won ? 1 : 0, liarWins: r.liar_wins, exactWins: r.exact_wins, bids: r.extra.bids });
+      await grantLevelRewards(r.profile_id, c);
     }
   } catch (err) {
     console.error("rewardGame", err);
@@ -130,7 +132,7 @@ function currentChallenges(c: PublicContent, now = new Date()) {
   const exact = c.settings.exactEnabled !== false;
   return [
     ...pickChallenges(c.challenges, "daily", k.day, exact).map((ch) => ({ ...ch, key: k.day })),
-    ...pickChallenges(c.challenges, "weekly", k.week, exact).map((ch) => ({ ...ch, key: k.week })),
+    ...pickChallenges(c.challenges, "weekly", k.week, exact, 1).map((ch) => ({ ...ch, key: k.week })), // 3 quotidiens + 1 hebdo
   ];
 }
 const evId = (key: string, ch: ChallengeItem) => `challenge:${key.replace(":", "-")}:${ch.id}`;
@@ -140,8 +142,24 @@ async function advanceChallenges(profileId: string, c: PublicContent, inc: Recor
   const clean = Object.fromEntries(Object.entries(inc).filter(([, v]) => v > 0));
   const prog = await srv2<Record<string, number>>("progress_add", { profile_id: profileId, periods: [k.day, k.week], inc: clean });
   for (const ch of currentChallenges(c)) {
-    if ((prog[`${ch.key}|${ch.metric}`] ?? 0) >= ch.target)
-      await srv2("grant", { profile_id: profileId, event_id: evId(ch.key, ch), kind: "challenge", doblons: ch.doblons, fragments: ch.fragments, detail: { name: ch.name, period: ch.period } });
+    if ((prog[`${ch.key}|${ch.metric}`] ?? 0) >= ch.target) {
+      const r = challengeReward(c.economy, ch);
+      await srv2("grant", { profile_id: profileId, event_id: evId(ch.key, ch), kind: "challenge", doblons: r.doblons, xp: r.xp, fragments: ch.fragments, detail: { name: ch.name, period: ch.period } });
+    }
+  }
+}
+/** Récompense fixe d'un défi (§ 43) : quotidien 25 Doblons / 30 XP, hebdo 100 / 120 (réglables). */
+export const challengeReward = (e: EconomyConfig, ch: { period: "daily" | "weekly" }) =>
+  ch.period === "weekly" ? { doblons: e.rewards.weeklyChallenge, xp: e.rewards.weeklyChallengeXp } : { doblons: e.rewards.dailyChallenge, xp: e.rewards.dailyChallengeXp };
+
+/** Paliers de niveau atteints : versés une seule fois chacun (clé unique `level:N` en base). */
+export async function grantLevelRewards(profileId: string, c: PublicContent) {
+  const w = await wallet(profileId);
+  const lvl = levelOf(c.economy, w.wallet.xp).level;
+  for (const r of levelRewardsUpTo(c.economy, lvl)) {
+    const items = r.frame && c.frames.some((f) => f.id === r.frame) ? [{ type: "frame", id: r.frame }] : [];
+    // Doblons + cadre dans la même écriture atomique, une seule fois par palier
+    await srv2("grant", { profile_id: profileId, event_id: `level:${r.level}`, kind: "level", doblons: r.doblons, xp: 0, items, detail: { level: r.level, frame: r.frame ?? null } });
   }
 }
 
@@ -179,7 +197,7 @@ export async function progressionPayload(profileId: string, isMember: boolean, u
       have: Math.min(ch.target, prog[`${ch.key}|${ch.metric}`] ?? 0),
       // la récompense est versée dès que l'objectif est atteint
       done: (prog[`${ch.key}|${ch.metric}`] ?? 0) >= ch.target,
-      doblons: ch.doblons, fragments: ch.fragments,
+      ...challengeReward(e, ch), fragments: ch.fragments,
       ends: periodEnd(now, ch.period === "weekly").toISOString(),
     })),
     history: w.ledger.slice(0, 20).map((l) => ({ kind: l.kind, doblons: l.doblons, xp: l.xp, fragments: l.fragments, at: l.at, label: ledgerLabel(l) })),
@@ -189,7 +207,8 @@ export async function progressionPayload(profileId: string, isMember: boolean, u
 function ledgerLabel(l: { kind: string; detail: Record<string, unknown> | null }) {
   const d = l.detail ?? {};
   switch (l.kind) {
-    case "game": return d.won ? "Victoire en partie officielle" : "Partie officielle terminée";
+    case "game": return d.won ? "Victoire" : "Partie terminée";
+    case "level": return `Palier du niveau ${d.level ?? ""}`;
     case "challenge": return `Défi : ${d.name ?? ""}`;
     case "wheel": return `Roue : ${d.label ?? ""}${Number(d.compensated) ? " (doublon compensé)" : ""}`;
     case "shop": return `Achat : ${d.name ?? ""}`;
@@ -202,6 +221,7 @@ function ledgerLabel(l: { kind: string; detail: Record<string, unknown> | null }
 export function publicEconomy(e: EconomyConfig) {
   return {
     rewards: e.rewards, limits: e.limits, official: e.official, fragments: e.fragments,
+    levelRewards: e.levelRewards, levelAfter: e.levelAfter,
     wheel: { cooldownHours: e.wheel.cooldownHours, duplicateDoblons: e.wheel.duplicateDoblons, prizes: e.wheel.prizes.filter((p) => p.active).map(({ id, label, icon, weight }) => ({ id, label, icon, weight })) },
   };
 }
@@ -248,6 +268,7 @@ export async function buy(profileId: string, type: ItemType, id: string) {
   const c = await publicContent();
   const it = catalogOf(c, type).find((x) => x.id === id);
   if (!it) throw new RuleError("Objet introuvable");
+  if (it.reward) throw new RuleError("Cet objet se gagne en montant de niveau");
   if (it.price <= 0) throw new RuleError("Cet objet est déjà gratuit");
   const r = await srv2<string>("buy", { profile_id: profileId, type, id, price: it.price, name: it.name });
   if (r === "owned") throw new RuleError("Tu possèdes déjà cet objet");

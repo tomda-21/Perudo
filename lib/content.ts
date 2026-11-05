@@ -22,8 +22,8 @@ export type CupItem = {
   category?: CupCategory; price?: number; fx?: "none" | "sparkle" | "flames" | "smoke" | "glow";
 };
 export type ReactionItem = { id: string; label: string; emoji: string; price: number };
-export const FRAME_STYLES = ["gold", "neon", "fire", "ice", "rainbow", "jungle"] as const;
-export type FrameItem = { id: string; name: string; style: (typeof FRAME_STYLES)[number]; price: number };
+export const FRAME_STYLES = ["gold", "neon", "fire", "ice", "rainbow", "jungle", "bronze", "goldanim"] as const;
+export type FrameItem = { id: string; name: string; style: (typeof FRAME_STYLES)[number]; price: number; reward?: boolean }; // reward : se gagne (palier de niveau), jamais vendu
 export const VICTORY_STYLES = ["confetti", "fireworks", "goldrain", "hearts", "stars"] as const;
 export type VictoryItem = { id: string; name: string; style: (typeof VICTORY_STYLES)[number]; price: number };
 export const MAP_ANIMS = ["none", "embers", "sparkles", "float", "clouds", "rain"] as const;
@@ -128,6 +128,8 @@ export const DEFAULT_CONTENT: PublicContent = {
     { id: "gold", name: "Cadre doré", style: "gold", price: 600 }, { id: "neon", name: "Néon", style: "neon", price: 600 },
     { id: "fire", name: "Flammes", style: "fire", price: 600 }, { id: "ice", name: "Givre", style: "ice", price: 600 },
     { id: "rainbow", name: "Arc-en-ciel", style: "rainbow", price: 600 }, { id: "jungle", name: "Jungle", style: "jungle", price: 600 },
+    { id: "bronze-gobelin", name: "Bronze du Gobelin", style: "bronze", price: 0, reward: true },
+    { id: "gold-anim", name: "Or animé", style: "goldanim", price: 0, reward: true },
   ],
   victories: [
     { id: "confetti", name: "Confettis", style: "confetti", price: 0 }, { id: "fireworks", name: "Feu d'artifice", style: "fireworks", price: 1200 },
@@ -249,7 +251,8 @@ export function cleanReaction(d: Record<string, unknown>): Omit<ReactionItem, "i
 export function cleanFrame(d: Record<string, unknown>): Omit<FrameItem, "id"> {
   const name = str(d.name, 24);
   if (!name) throw new ContentError("Donne un nom au cadre");
-  return { name, style: FRAME_STYLES.includes(d.style as FrameItem["style"]) ? (d.style as FrameItem["style"]) : "gold", price: price(d.price) };
+  const reward = d.reward === true;
+  return { name, style: FRAME_STYLES.includes(d.style as FrameItem["style"]) ? (d.style as FrameItem["style"]) : "gold", price: reward ? 0 : price(d.price), ...(reward ? { reward } : {}) };
 }
 export function cleanVictory(d: Record<string, unknown>): Omit<VictoryItem, "id"> {
   const name = str(d.name, 24);

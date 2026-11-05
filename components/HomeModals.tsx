@@ -116,14 +116,15 @@ export function EarnModal({ onClose, onWheel, onChallenges }: { onClose: () => v
     <Modal title="Gagner des Doblons" onClose={onClose}>
       <p className="center-text">Les Doblons se gagnent <b>uniquement en jouant</b> — aucun achat avec de l&apos;argent réel.</p>
       <ul className="earn-list">
-        <li><span>🎲</span> Partie officielle terminée <b>+{R.complete.doblons}</b></li>
-        <li><span>🏆</span> Victoire <b>+{R.win.doblons}</b></li>
-        <li><span>🤥</span> « Menteur ! » réussi <b>+{R.liar.doblons}</b> <em>(max {e.limits.liarPerGame} par partie)</em></li>
-        <li><span>🎯</span> « Exact ! » réussi <b>+{R.exact.doblons}</b> <em>(max {e.limits.exactPerGame} par partie)</em></li>
-        <li><span>🗓️</span> Défis du jour et de la semaine <button className="pill pill-btn" onClick={onChallenges}>Voir</button></li>
+        <li><span>🎲</span> Partie terminée <b>+{R.complete.doblons}</b> <em>+{R.complete.xp} XP</em></li>
+        <li><span>🏆</span> Victoire <b>+{R.win.doblons}</b> <em>+{R.win.xp} XP</em></li>
+        <li><span>⚡</span> Dudo réussi <b>+{R.liar.doblons}</b> <em>+{R.liar.xp} XP · max {e.limits.liarPerGame} par partie</em></li>
+        <li><span>🎯</span> Exact réussi <b>+{R.exact.doblons}</b> <em>+{R.exact.xp} XP · max {e.limits.exactPerGame} par partie</em></li>
+        <li><span>🗓️</span> Défi du jour <b>+{R.dailyChallenge}</b> <em>+{R.dailyChallengeXp} XP</em> · défi de la semaine <b>+{R.weeklyChallenge}</b> <em>+{R.weeklyChallengeXp} XP</em> <button className="pill pill-btn" onClick={onChallenges}>Voir</button></li>
+        <li><span>⭐</span> Paliers de niveau : {e.levelRewards.map((r) => `niv. ${r.level} +${r.doblons}`).join(" · ")}</li>
         <li><span>🎡</span> Roue du Gobelin, toutes les {e.wheel.cooldownHours} h <button className="pill pill-btn" onClick={onWheel}>Tourner</button></li>
       </ul>
-      <p className="muted small center-text">Partie officielle : au moins {e.official.minHumans} vrais joueurs et {e.official.minRounds} manches{e.official.allowBots ? "" : ", sans bot"}. Il faut un compte.</p>
+      <p className="muted small center-text">Toute partie terminée compte, même avec des bots. Il faut un compte (les invités jouent sans rien sauvegarder).</p>
     </Modal>
   );
 }

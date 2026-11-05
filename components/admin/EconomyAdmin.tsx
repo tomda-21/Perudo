@@ -71,7 +71,7 @@ export default function EconomyAdmin() {
           <table className="a-table">
             <thead><tr><th></th><th>Doblons</th><th>XP</th></tr></thead>
             <tbody>
-              {([["complete", "Partie officielle terminée"], ["win", "Bonus de victoire"], ["liar", "« Menteur ! » réussi"], ["exact", "« Exact ! » réussi"]] as const).map(([k, l]) => (
+              {([["complete", "Partie terminée"], ["win", "Bonus de victoire"], ["liar", "Dudo réussi"], ["exact", "Exact réussi"]] as const).map(([k, l]) => (
                 <tr key={k}><td>{l}</td>
                   <td><input type="number" min={0} value={R[k].doblons} onChange={(ev) => rew(k, "doblons", Number(ev.target.value))} /></td>
                   <td><input type="number" min={0} value={R[k].xp} onChange={(ev) => rew(k, "xp", Number(ev.target.value))} /></td></tr>
@@ -79,20 +79,26 @@ export default function EconomyAdmin() {
             </tbody>
           </table>
           <div className="a-cols">
-            <Num label="Max « Menteur ! » récompensés par partie" value={e.limits.liarPerGame} max={50} onChange={(n) => set({ limits: { ...e.limits, liarPerGame: n } })} />
-            <Num label="Max « Exact ! » récompensés par partie" value={e.limits.exactPerGame} max={50} onChange={(n) => set({ limits: { ...e.limits, exactPerGame: n } })} />
+            <Num label="Max Dudo récompensés par partie" value={e.limits.liarPerGame} max={50} onChange={(n) => set({ limits: { ...e.limits, liarPerGame: n } })} />
+            <Num label="Max Exact récompensés par partie" value={e.limits.exactPerGame} max={50} onChange={(n) => set({ limits: { ...e.limits, exactPerGame: n } })} />
           </div>
 
           <div className="section-title">Partie officielle (anti-triche)</div>
           <div className="a-cols">
-            <Num label="Vrais joueurs minimum" value={e.official.minHumans} min={2} max={8} onChange={(n) => set({ official: { ...e.official, minHumans: n } })} />
+            <Num label="Vrais joueurs minimum" value={e.official.minHumans} min={1} max={6} onChange={(n) => set({ official: { ...e.official, minHumans: n } })} />
             <Num label="Manches minimum" value={e.official.minRounds} min={1} max={50} onChange={(n) => set({ official: { ...e.official, minRounds: n } })} />
           </div>
           <label className="toggle-row"><span>Les parties avec des bots rapportent aussi</span><input type="checkbox" checked={e.official.allowBots} onChange={(ev) => set({ official: { ...e.official, allowBots: ev.target.checked } })} /><span className="switch" /></label>
           <p className="a-hint">Un joueur qui quitte avant la fin ne touche rien. Chaque partie ne peut être récompensée qu&apos;une fois par joueur (vérifié en base).</p>
 
           <div className="section-title">Défis</div>
-          <p className="a-hint">Les récompenses de chaque défi se règlent dans l&apos;onglet « Défis ». Fuseau de référence : Europe/Paris.</p>
+          <div className="a-cols">
+            <Num label="Défi quotidien : Doblons" value={R.dailyChallenge} onChange={(n) => set({ rewards: { ...R, dailyChallenge: n } })} />
+            <Num label="Défi quotidien : XP" value={R.dailyChallengeXp} onChange={(n) => set({ rewards: { ...R, dailyChallengeXp: n } })} />
+            <Num label="Défi hebdo : Doblons" value={R.weeklyChallenge} onChange={(n) => set({ rewards: { ...R, weeklyChallenge: n } })} />
+            <Num label="Défi hebdo : XP" value={R.weeklyChallengeXp} onChange={(n) => set({ rewards: { ...R, weeklyChallengeXp: n } })} />
+          </div>
+          <p className="a-hint">3 défis quotidiens (minuit, Paris) et 1 défi hebdomadaire (lundi minuit). Les objectifs se règlent dans l&apos;onglet « Défis ».</p>
 
           <div className="section-title">Roue du Gobelin</div>
           <div className="a-cols">
@@ -134,7 +140,31 @@ export default function EconomyAdmin() {
           <div className="a-cols">
             <Num label="XP du niveau 1 → 2" value={e.levels.base} min={10} onChange={(n) => set({ levels: { ...e.levels, base: n } })} />
             <Num label="XP en plus à chaque niveau" value={e.levels.step} onChange={(n) => set({ levels: { ...e.levels, step: n } })} />
+            <Num label="Terme au carré" value={e.levels.quad} onChange={(n) => set({ levels: { ...e.levels, quad: n } })} />
           </div>
+          <p className="a-hint">Formule : {e.levels.base} + {e.levels.step} × (n − 1) + {e.levels.quad} × (n − 1)² XP pour passer du niveau n au niveau n + 1.</p>
+          <div className="section-title">Paliers de niveau (versés une seule fois)</div>
+          <table className="a-table">
+            <thead><tr><th>Niveau</th><th>Doblons</th><th>Cadre offert (id)</th><th></th></tr></thead>
+            <tbody>
+              {e.levelRewards.map((r, i) => (
+                <tr key={i}>
+                  <td><input type="number" min={2} value={r.level} onChange={(ev) => set({ levelRewards: e.levelRewards.map((x, j) => j === i ? { ...x, level: Number(ev.target.value) } : x) })} /></td>
+                  <td><input type="number" min={0} value={r.doblons} onChange={(ev) => set({ levelRewards: e.levelRewards.map((x, j) => j === i ? { ...x, doblons: Number(ev.target.value) } : x) })} /></td>
+                  <td><input value={r.frame ?? ""} placeholder="aucun" onChange={(ev) => set({ levelRewards: e.levelRewards.map((x, j) => j === i ? { ...x, frame: ev.target.value || null } : x) })} /></td>
+                  <td><button className="a-link" onClick={() => set({ levelRewards: e.levelRewards.filter((_, j) => j !== i) })}>Retirer</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="a-row">
+            <button className="gbtn gbtn-dark gbtn-sm" onClick={() => set({ levelRewards: [...e.levelRewards, { level: 60, doblons: 100, frame: null }] })}>＋ Ajouter un palier</button>
+          </div>
+          <div className="a-cols">
+            <Num label="Ensuite, tous les … niveaux" value={e.levelAfter.every} onChange={(n) => set({ levelAfter: { ...e.levelAfter, every: n } })} />
+            <Num label="… Doblons" value={e.levelAfter.doblons} onChange={(n) => set({ levelAfter: { ...e.levelAfter, doblons: n } })} />
+          </div>
+          <p className="a-hint">Les titres de niveau (ex. « Apprenti du bluff » au niveau 10) se règlent ci-dessous.</p>
           <p className="a-hint">Aperçu : niveau 5 = {[1, 2, 3, 4].reduce((n, l) => n + xpStep(e, l), 0)} XP · niveau 10 = {Array.from({ length: 9 }, (_, i) => xpStep(e, i + 1)).reduce((a, b) => a + b, 0)} XP · avec 1000 XP on est niveau {levelOf(e, 1000).level}. Une partie gagnée ≈ {R.complete.xp + R.win.xp} XP.</p>
 
           <div className="section-title">Titres</div>

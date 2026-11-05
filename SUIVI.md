@@ -22,7 +22,9 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
   - Restes : réinit. mot de passe joueur dans l'admin = ancien système (P7) ; « parties avec bots comptent » (P5).
 - [ ] P3 Interface : dés perso permanents, mobile paysage, zooms, Palifico/élimination, gobelin commentateur, retrait anti-spam, volumes séparés, couper un joueur.
 - [ ] P4 Maps : 8 maps (3 nouvelles), décors HD manquants (fournis par Tom).
-- [ ] P5 Progression : nouveaux gains, formule de niveau, paliers, 3 défis/j + 1 hebdo, classements amis, succès.
+- [x] P5 Progression : nouveaux gains, formule de niveau, paliers, 3 défis/j + 1 hebdo, classements amis, succès.
+  - `lib/economy.ts` (valeurs § 40–42, `levelRewardsUpTo`), `lib/progression.ts` (`grantLevelRewards`, `challengeReward`), cadres de palier `bronze-gobelin` / `gold-anim` (reward: jamais vendus), `lib/ranking.ts` + `lib/ranking-server.ts` (`srv5 rank_stats`). Toute partie terminée compte (bots compris), invités exclus.
+  - Restes : affichage des classements = P8 (amis) ; fragments au choix / conversions 30 Doblons = P6.
 - [ ] P6 Boutique : coffres (3 niveaux, tirage serveur atomique), prestige, pack de base gratuit, roue (nouveaux lots), fragments au choix.
 - [ ] P7 Admin : droits cosmétiques admin, XP/objets aux joueurs (jamais à soi), coffres/probabilités.
 - [ ] P8 Social : amis, invitations, présence, blocage/signalement, notifications.

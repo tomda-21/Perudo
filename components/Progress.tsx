@@ -187,6 +187,13 @@ export function LevelCard({ prog }: { prog: ProgressState }) {
       <div className="level-main">
         <div className="level-top"><b>Niveau {p.level.level}</b><Coins n={p.doblons} frag={p.fragments} /></div>
         <div className="xp-bar" title={`${p.level.into} / ${p.level.need} XP`}><span style={{ width: `${pct}%` }} /><em>{p.level.into} / {p.level.need} XP</em></div>
+        {(() => {
+          const lv = p.level.level, E = p.economy;
+          const last = Math.max(0, ...E.levelRewards.map((r) => r.level));
+          const next = E.levelRewards.find((r) => r.level > lv)
+            ?? (E.levelAfter.every > 0 ? { level: last + Math.ceil(Math.max(1, lv - last + 1) / E.levelAfter.every) * E.levelAfter.every, doblons: E.levelAfter.doblons, frame: null } : null);
+          return next ? <div className="muted small">Prochain palier : niveau {next.level} → +{next.doblons} Doblons{next.frame ? " + un cadre" : ""}</div> : null;
+        })()}
         <label className="title-pick">
           <span>Titre affiché</span>
           <select value={p.titleId ?? ""} onChange={async (e) => {
@@ -323,11 +330,11 @@ export function ShopModal({ onClose, prog, onCupBought }: { onClose: () => void;
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const items: { id: string; name: string; price: number; icon?: string; preview?: () => void; style?: string }[] =
+  const items: { id: string; name: string; price: number; icon?: string; preview?: () => void; style?: string; level?: number }[] =
     tab === "phrase" ? c.phrases.map((x) => ({ id: x.id, name: `« ${x.text} »`, price: x.price ?? 0, preview: () => previewVoice(x.text, x.audio) }))
     : tab === "sound" ? c.sounds.map((x) => ({ id: x.id, name: x.label, icon: x.icon, price: x.price ?? 0, preview: () => { unlockAudio(); previewSound(x); } }))
     : tab === "reaction" ? c.reactions.map((x) => ({ id: x.id, name: x.label, icon: x.emoji, price: x.price }))
-    : tab === "frame" ? c.frames.map((x) => ({ id: x.id, name: x.name, price: x.price, style: x.style }))
+    : tab === "frame" ? c.frames.map((x) => ({ id: x.id, name: x.name, price: x.price, style: x.style, level: x.reward ? p?.economy.levelRewards.find((r) => r.frame === x.id)?.level ?? 0 : undefined }))
     : tab === "victory" ? c.victories.map((x) => ({ id: x.id, name: x.name, price: x.price, style: x.style }))
     : c.cups.filter((x) => x.category === "shop").map((x) => ({ id: x.id, name: x.name, price: x.price ?? 0 }));
 
@@ -349,7 +356,8 @@ export function ShopModal({ onClose, prog, onCupBought }: { onClose: () => void;
           {items.length === 0 ? <p className="muted center-text">Rien dans cette catégorie pour l&apos;instant.</p> : (
             <div className="shop-grid">
               {items.map((x) => {
-                const own = has(x.id, x.price);
+                // cadres de palier : possédés seulement une fois le niveau atteint
+                const own = x.level !== undefined ? !!(p.member && p.owned.frame.includes(x.id)) : has(x.id, x.price);
                 return (
                   <div key={x.id} className={`shop-card ${own ? "owned" : ""}`}>
                     <div className="shop-visual">
@@ -365,6 +373,8 @@ export function ShopModal({ onClose, prog, onCupBought }: { onClose: () => void;
                         ? equipped(x.id) ? <div className="pill pill-green">Équipé</div>
                           : <button className="pill pill-btn" disabled={busy || !p.member} onClick={() => run({ op: "equip", field: tab, value: x.id }, "Équipé !")}>Équiper</button>
                         : <div className="pill pill-green">{x.price ? "Possédé" : "Gratuit"}</div>
+                    ) : x.level !== undefined ? (
+                      <div className="pill">🔒 Niveau {x.level || "?"}</div>
                     ) : (
                       <button className="gbtn gbtn-gold gbtn-sm" disabled={busy || !p.member || (p.member && p.doblons < x.price)}
                         onClick={() => confirm(`Acheter « ${x.name} » pour ${x.price} Doblons ?`) && run({ op: "buy", type: tab, id: x.id }, "Acheté ! Disponible tout de suite.")}>
@@ -402,7 +412,7 @@ export function ChallengesModal({ onClose, prog }: { onClose: () => void; prog: 
                 <div key={c.id} className={`challenge ${c.done ? "done" : ""}`}>
                   <div className="challenge-top">
                     <b>{c.done ? "✅ " : ""}{c.name}</b>
-                    <span>🪙 {c.doblons}{c.fragments ? ` + 🧩 ${c.fragments}` : ""}</span>
+                    <span>🪙 {c.doblons} · ✨ {c.xp} XP{c.fragments ? ` + 🧩 ${c.fragments}` : ""}</span>
                   </div>
                   <div className="muted small">{c.target} {METRIC_LABEL[c.metric]}</div>
                   <div className="progress"><span style={{ width: `${(c.have / c.target) * 100}%` }} /><em>{c.have}/{c.target}</em></div>
@@ -410,7 +420,7 @@ export function ChallengesModal({ onClose, prog }: { onClose: () => void; prog: 
               ))}
             </div>
           ))}
-          <p className="muted small">Heure de référence : Paris (minuit, et lundi minuit pour la semaine). Seules les parties officielles comptent : au moins {p.economy.official.minHumans} vrais joueurs et {p.economy.official.minRounds} manches{p.economy.official.allowBots ? "" : ", sans bot"}. La récompense est versée automatiquement.</p>
+          <p className="muted small">Heure de référence : Paris (minuit, et lundi minuit pour la semaine). Toutes les parties terminées comptent, bots compris. La récompense est versée automatiquement.</p>
         </div>
       )}
     </Modal>

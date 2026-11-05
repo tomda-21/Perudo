@@ -84,11 +84,13 @@ test("stats : comptées seulement avec 2 humains, et une seule fois", () => {
   assert.equal(s.recorded, false);
 });
 
-test("solo contre des bots : partie d'entraînement, non comptée", () => {
+test("solo contre des bots : la partie compte (les bots comptent normalement)", () => {
   const s = newGame("T");
   addPlayer(s, "h", "Tom", "t", prof("h"));
   addBot(s, "h");
-  assert.equal(countsForStats(s), false);
+  assert.equal(countsForStats(s), true);
+  s.abandoned = true;
+  assert.equal(countsForStats(s), false, "partie abandonnée : jamais comptée");
 });
 
 test("gobelets : conditions de déblocage", () => {
