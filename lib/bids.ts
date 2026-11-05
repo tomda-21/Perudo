@@ -52,6 +52,21 @@ export function checkBid(
   return qty >= min ? null : `Pour quitter les pax il faut au moins ${min} dés`;
 }
 
+/**
+ * Plus petite quantité permise pour annoncer `face` après `prev`
+ * (null si cette valeur est interdite, ex. ouvrir sur les pax).
+ * Utilisée par l'interface pour proposer directement une annonce valable.
+ */
+export function minQtyFor(prev: Bid | null, face: number, palifico: boolean): number | null {
+  if (!prev) return face === 1 ? null : 1;
+  if (palifico) return face > prev.face ? prev.qty : prev.qty + 1;
+  const prevPax = prev.face === 1, nextPax = face === 1;
+  if (!prevPax && !nextPax) return face > prev.face ? prev.qty : prev.qty + 1;
+  if (!prevPax && nextPax) return Math.ceil(prev.qty / 2);
+  if (prevPax && nextPax) return prev.qty + 1;
+  return prev.qty * 2 + 1; // pax → valeur normale (n'importe laquelle de 2 à 6)
+}
+
 /** Nombre de dés qui correspondent à l'annonce (1 jokers sauf palifico). */
 export function countMatching(hands: number[][], face: number, palifico: boolean) {
   let n = 0;

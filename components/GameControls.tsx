@@ -2,7 +2,7 @@
 // Commandes de jeu : barre d'enchère (façon maquette) et salle d'attente.
 import { useEffect, useMemo, useState } from "react";
 import Die from "./Die";
-import { checkBid } from "@/lib/bids";
+import { checkBid, minQtyFor } from "@/lib/bids";
 import { useContent } from "@/lib/content-client";
 import type { PlayerView } from "@/lib/rules";
 
@@ -27,6 +27,21 @@ export function ControlBar({ view, myTurn, imOut, busy, act, peek, onPeek, shaki
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bidKey]);
 
+  // changer de valeur : la quantité se cale sur le minimum légal pour cette valeur
+  // (ex. après 2 pax, choisir les 3 → 5 dés de 3). Les valeurs impossibles sont sautées.
+  const minFor = (f: number) => {
+    const m = minQtyFor(view.bid, f, view.palifico);
+    return m !== null && m <= view.totalDice ? Math.max(1, m) : null;
+  };
+  function changeFace(dir: 1 | -1) {
+    let f = face;
+    for (let i = 0; i < 6; i++) {
+      f = dir === 1 ? (f === 6 ? 1 : f + 1) : (f === 1 ? 6 : f - 1);
+      const m = minFor(f);
+      if (m !== null) { setFace(f); setQty(m); return; }
+    }
+  }
+
   const err = useMemo(() => checkBid(view.bid, { qty, face }, view.palifico, view.totalDice), [view.bid, qty, face, view.palifico, view.totalDice]);
 
   if (imOut) return <div className="control-bar center-bar"><p className="waiting">Tu es spectateur : tu peux encore envoyer des sons et des phrases 😈</p></div>;
@@ -46,9 +61,9 @@ export function ControlBar({ view, myTurn, imOut, busy, act, peek, onPeek, shaki
             </div>
             <span className="bid-of">dé{qty > 1 ? "s" : ""} de</span>
             <div className="stepper">
-              <button className="step" aria-label="Valeur précédente" onClick={() => setFace((f) => (f === 1 ? 6 : f - 1))}>−</button>
+              <button className="step" aria-label="Valeur précédente" onClick={() => changeFace(-1)}>−</button>
               <span className="step-val"><Die value={face} size="sm" />{face === 1 && <em>pax</em>}</span>
-              <button className="step" aria-label="Valeur suivante" onClick={() => setFace((f) => (f === 6 ? 1 : f + 1))}>+</button>
+              <button className="step" aria-label="Valeur suivante" onClick={() => changeFace(1)}>+</button>
             </div>
           </div>
           <div className="bid-actions">
