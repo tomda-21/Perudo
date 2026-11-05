@@ -185,10 +185,11 @@ export default function Home() {
       {!mobile ? (
         <>
           <div className="stage" style={{ width: STAGE_W, height: STAGE_H, transform: `translateX(-50%) scale(${s})` }}>
-            <span className="stage-sky" aria-hidden="true" />
+            {!bg && <span className="stage-sky" aria-hidden="true" />}
             <span className="stage-side stage-side-l" aria-hidden="true" />
             <span className="stage-side stage-side-r" aria-hidden="true" />
             <img className="stage-bg" src={bg ?? `${A}bg.webp`} alt="" draggable={false} />
+            {!bg && <span className="stage-fade" aria-hidden="true" />}
             {/* cascade, lanternes, néons */}
             <span className="fx-waterfall" style={at(2030, 460, 155, 300)} />
             {[[250, 372, 120], [70, 465, 110], [2285, 700, 120], [1655, 548, 150], [1948, 222, 120], [1110, 600, 70], [1880, 640, 80]].map(([x, y, r], i) => (
