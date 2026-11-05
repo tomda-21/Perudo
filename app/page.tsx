@@ -173,6 +173,13 @@ export default function Home() {
       <button className="hp-gear" onClick={() => open("settings")} aria-label="Paramètres"><img src={`${A}ico-gear.webp`} alt="" /></button>
     </>
   );
+  // le gobelin est assis derrière une table de jeu : la table, au premier plan, cache le bas de son corps
+  const GoblinAtTable = (
+    <>
+      <img className="goblin" src={goblin} alt="Le gobelin, mascotte de Perudo" draggable={false} />
+      <img className="goblin-table" src={`${A}goblin-table.webp`} alt="" draggable={false} />
+    </>
+  );
   const Card = (c: (typeof cards)[number], style?: CSSProperties) => (
     <button key={c.id} className={`hcard hcard-${c.id}`} style={style} onClick={c.onClick}>
       <img src={`${A}${c.img}.webp`} alt="" draggable={false} />
@@ -196,7 +203,7 @@ export default function Home() {
           <div className="stage" style={{ width: STAGE_W, height: STAGE_H, transform: `translateX(-50%) scale(${s})` }}>
             <div className="fx-motes" aria-hidden="true">{Array.from({ length: 22 }, (_, i) => <span key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i * 1.3) % 9}s`, animationDuration: `${9 + (i % 5) * 2}s` }} />)}</div>
 
-            <img className="goblin" src={goblin} alt="Le gobelin, mascotte de Perudo" style={at(90, 300, 740, 640)} draggable={false} />
+            <div className="goblin-wrap" style={at(90, 300, 740, 640)}>{GoblinAtTable}</div>
             {appearance.tagline && <div className="goblin-bubble" style={at(372, 236)}>{appearance.tagline}</div>}
 
             <img className="hdie die-float" src={`${A}die-a.webp`} alt="" style={at(982, 12, 92, 89)} />
@@ -219,7 +226,7 @@ export default function Home() {
           <div className="m-top">{ProfileBadge}<div className="m-top-right">{Wallet}<button className="hp-gear hp-friends-m" onClick={() => open("friends")} aria-label="Amis"><span>👥</span>{social.unread > 0 && <i className="hp-badge">{social.unread}</i>}</button><button className="hp-gear" onClick={() => open("settings")} aria-label="Paramètres"><img src={`${A}ico-gear.webp`} alt="" /></button></div></div>
           <div className="m-logo"><Logo image={appearance.logo} shine={!calm} /><img className="hdie die-float m-die" src={`${A}die-a.webp`} alt="" /></div>
           <div className="m-middle">
-            <img className="goblin m-goblin" src={goblin} alt="Le gobelin, mascotte de Perudo" draggable={false} />
+            <div className="goblin-wrap m-goblin">{GoblinAtTable}</div>
             <button className="play-sign m-play" onClick={() => { unlockAudio(); sounds.shake(); setMenu("play"); }}>
               <img src={`${A}play.webp`} alt="" draggable={false} />
               <span>Jouer</span>

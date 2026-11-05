@@ -889,6 +889,10 @@ input[type="number"] { max-width: 160px; }
 }
 
 /* gobelin : respiration et petit balancement (discrets) */
+.goblin-wrap { pointer-events: none; }
+.goblin-wrap .goblin { position: absolute; left: 0; top: 0; width: 100%; height: auto; }
+/* table de jeu au premier plan (repère du gobelin 740 × 640) : son bord arrière passe sous la main posée */
+.goblin-table { position: absolute; left: -9.46%; top: 93.1%; width: 118.9%; height: auto; max-width: none; user-select: none; pointer-events: none; }
 .goblin { transform-origin: 55% 100%; animation: goblin-breathe 5.6s ease-in-out infinite; user-select: none; pointer-events: none; will-change: transform; }
 @keyframes goblin-breathe {
   0%, 100% { transform: scale(1, 1); }
@@ -1021,7 +1025,7 @@ input[type="number"] { max-width: 160px; }
 .m-logo .logo-wrap { width: 100%; }
 .m-die { position: absolute; width: 13%; left: 18%; top: -6%; }
 .m-middle { position: relative; z-index: 2; width: 100%; flex: 1; min-height: 190px; display: flex; align-items: flex-end; justify-content: center; }
-.m-goblin { position: absolute; left: -14vw; bottom: 46px; width: min(68vw, 360px); z-index: 0; }
+.m-goblin { position: absolute; left: -14vw; bottom: 46px; width: min(68vw, 360px); z-index: 0; aspect-ratio: 740 / 640; }
 .m-play { position: relative; z-index: 1; width: min(80vw, 420px); aspect-ratio: 749 / 249; margin-bottom: 8px; }
 .m-play span { font-size: clamp(34px, 12vw, 58px); }
 .m-cards { position: relative; z-index: 3; width: 100%; max-width: 560px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px 4px; padding: 0 6px 12px; }
