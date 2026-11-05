@@ -49,3 +49,9 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
 - Bruitages manuels retirés des parties (plus de bouton Sons ; lot « Son » de la roue traité comme cosmétique ; réglage « Bruitages des joueurs » retiré). Phrases / Réactions : 2 boutons ronds en haut, panneau compact dans la scène.
 - `components/RotatePrompt.tsx` : « Tourne ton téléphone ! » en CSS pur (portrait + écran tactile ≤ 1024 px), salle d'attente / partie / révélation / victoire seulement ; n'agit que sur l'affichage.
 - Version de secours : tag Git `before-ui-v2`.
+
+### V2 — décor du Casino du Gobelin (05/11/2026)
+- Fond fourni par Tom posé en plein écran, net (sans flou) : `public/art/game/casino-bg.webp` (+ `casino-bg-m.webp` mobile).
+- La table est posée sur le dallage (ombre au sol + ombre portée) ; l'ancien calque de map flouté est retiré pour le casino.
+- Map unique : la plage n'est plus tirée au sort (base + valeurs par défaut). Seul le Casino du Gobelin reste dans le tirage.
+- Vérifié au simulateur : 667×375, 844×390, 1366×768, 1920×1080, 2560×1350. Aucun bouton hors écran, aucun chevauchement. Typecheck OK, 89 tests OK.

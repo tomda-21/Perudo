@@ -1457,6 +1457,15 @@ input[type="number"] { max-width: 160px; }
 .gv2-stage > * { position: absolute; }
 .gv2-stage.camzoom { animation: camzoomv2 1.05s ease-in-out; }
 @keyframes camzoomv2 { 0%, 100% { transform: translate(-50%, -50%) scale(var(--s)); } 40% { transform: translate(-50%, -50%) scale(calc(var(--s) * 1.05)); } }
+/* décor net du casino : plein écran, sans flou ; la table est posée sur le dallage */
+.gv2-bg.decor { inset: 0; filter: none; background-image: url(/art/game/casino-bg-m.webp); background-position: center 62%; }
+@media (min-width: 1300px), (min-height: 800px) { .gv2-bg.decor { background-image: url(/art/game/casino-bg.webp); } }
+.gv2-bg.decor::after { background:
+  radial-gradient(ellipse 80% 70% at 50% 55%, transparent 55%, rgba(12,4,20,.45) 100%),
+  linear-gradient(to bottom, rgba(12,4,20,.45), transparent 12%, transparent 80%, rgba(18,8,4,.55)); }
+.st-floor-l { left: 110px; top: 470px; width: 1180px; height: 150px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(10,3,14,.75) 0%, rgba(10,3,14,.45) 45%, transparent 72%); filter: blur(6px); }
+.map-casino .st-table-l { filter: drop-shadow(0 18px 16px rgba(0,0,0,.55)); }
 .st-table-l { left: 50px; top: 80px; width: 1300px; height: auto; pointer-events: none; }
 /* décor net : même illustration que la table → aligné exactement (tapis du décor = tapis de la table) */
 .st-map-l { left: -86px; top: -126px; width: 1734px; height: 962px; max-width: none; pointer-events: none;

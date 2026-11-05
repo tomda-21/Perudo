@@ -265,7 +265,9 @@ export default function GamePage() {
   const barProps = { view, myTurn: myTurn && !shaking, busy, act, peek, onPeek: () => setPeek((x) => !x), shaking, waitingFor: name(view.turnId), imOut };
   const introMap = intro ? MAPS.find((m) => m.id === intro) : null;
   const calm = settings.reduceMotion;
-  const bg = (mapItem?.image && assetUrl(mapItem.image)) || gameBg3(scene);
+  const customBg = mapItem?.image ? assetUrl(mapItem.image) : null;
+  const decor = !customBg && scene === "casino"; // décor net du Casino du Gobelin (image dédiée, responsive en CSS)
+  const bg = customBg || gameBg3(scene);
 
   // la scène (table + joueurs) occupe tout l'espace entre le haut et la barre ; les commandes restent en HTML
   const stage = (
@@ -275,7 +277,7 @@ export default function GamePage() {
 
   return (
     <main className={`gv2 phase-${view.phase} map-${scene} ${myTurn ? "my-turn" : ""} ${calm ? "calm" : ""} ${callFx ? `shake-${callFx.kind}` : ""}`}>
-      <div className="gv2-bg" style={{ backgroundImage: `url(${bg})` }} />
+      <div className={`gv2-bg ${decor ? "decor" : ""}`} style={decor ? undefined : { backgroundImage: `url(${bg})` }} />
       {!calm && (mapItem?.anims?.length ?? 0) > 0 && (
         <div className="g2-ambient"><Scene id="__ambient__" override={{ scene: null, image: null, layers: [], anims: mapItem!.anims }} /></div>
       )}

@@ -225,7 +225,8 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
   const land = geo === LAND;
   if (land) return (
     <>
-      {withBackground && <img className="st-map-l" src={custom ?? gameBg3(scene)} alt="" draggable={false} />}
+      {withBackground && (custom || scene !== "casino") && <img className="st-map-l" src={custom ?? gameBg3(scene)} alt="" draggable={false} />}
+      {withBackground && <div className="st-floor-l" />}
       {withBackground && <img className="st-table-l" src={gameTable(scene)} alt="" draggable={false} />}
       <Center view={view} geo={geo} />
       {seatsOf()}

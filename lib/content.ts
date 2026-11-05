@@ -121,7 +121,7 @@ export const DEFAULT_CONTENT: PublicContent = {
   ],
   cups: DEFAULT_CUPS,
   // Enfer, Paradis et Rue urbaine : décors provisoires (en attente d'illustrations HD) → hors tirage par défaut
-  maps: MAPS.map((m) => ({ id: m.id, name: m.name, icon: m.icon, scene: m.id, image: null, layers: [], anims: m.id === "hell" ? ["embers"] : m.id === "heaven" ? ["sparkles"] : m.id === "casino" ? ["sparkles"] : [], felt: null, random: m.id === "beach" || m.id === "casino" })),
+  maps: MAPS.map((m) => ({ id: m.id, name: m.name, icon: m.icon, scene: m.id, image: null, layers: [], anims: m.id === "hell" ? ["embers"] : m.id === "heaven" ? ["sparkles"] : m.id === "casino" ? ["sparkles"] : [], felt: null, random: m.id === "casino" })),
   reactions: [
     { id: "rire", label: "Rire", emoji: "😂", price: 0 }, { id: "surprise", label: "Surprise", emoji: "😱", price: 0 },
     { id: "suspicion", label: "Suspicion", emoji: "🤨", price: 0 }, { id: "bravo", label: "Bravo", emoji: "👏", price: 0 },
