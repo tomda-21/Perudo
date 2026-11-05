@@ -163,7 +163,7 @@ export class ContentError extends Error {}
 export function cleanPhrase(d: Record<string, unknown>): Omit<PhraseItem, "id"> {
   const text = str(d.text, 60);
   if (!text) throw new ContentError("La phrase est vide");
-  return { text, audio: asset(d.audio), price: price(d.price) };
+  return { text, audio: asset(d.audio), price: 0 /* § 51 : offert, jamais vendu */ };
 }
 const price = (x: unknown) => { const v = Math.round(Number(x)); return Number.isFinite(v) ? Math.min(1_000_000, Math.max(0, v)) : 0; };
 export function cleanSound(d: Record<string, unknown>): Omit<SoundItem, "id"> {
@@ -178,7 +178,7 @@ export function cleanSound(d: Record<string, unknown>): Omit<SoundItem, "id"> {
     label, icon: str(d.icon, 8) || "🔊", file, synth,
     volume: Number.isFinite(vol) ? Math.min(1, Math.max(0.05, vol)) : 1,
     anim: anims.includes(d.anim as FxAnim) ? (d.anim as FxAnim) : "pop",
-    price: price(d.price),
+    price: 0, /* § 51 : offert, jamais vendu */
   };
 }
 export function cleanCup(d: Record<string, unknown>): Omit<CupItem, "id"> {
@@ -253,7 +253,7 @@ export function appearanceCss(a: Appearance) {
 export function cleanReaction(d: Record<string, unknown>): Omit<ReactionItem, "id"> {
   const label = str(d.label, 20), emoji = str(d.emoji, 8);
   if (!label || !emoji) throw new ContentError("Il faut un nom et un emoji");
-  return { label, emoji, price: price(d.price) };
+  return { label, emoji, price: 0 /* § 51 : offert, jamais vendu */ };
 }
 const RARITIES: Rarity[] = ["commun", "rare", "épique", "légendaire"];
 const rarityOf = (v: unknown): Rarity => (RARITIES.includes(v as Rarity) ? (v as Rarity) : "commun");

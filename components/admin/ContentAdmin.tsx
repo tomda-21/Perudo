@@ -194,7 +194,7 @@ function Editor({ kind, data, onChange, isNew }: { kind: Kind; data: Record<stri
         </Field>
         <FileField label="Enregistrement audio (facultatif)" kind="audio" value={data.audio as string} onChange={(v) => set("audio", v)}
           hint="MP3, OGG, WAV ou M4A, 700 Ko max. Sans fichier : voix de synthèse du téléphone." />
-        <PriceField data={data} set={set} />
+        <p className="a-hint">Offert à tous les joueurs (jamais vendu).</p>
         <div className="a-preview">
           <span className="a-label">Aperçu</span>
           <div className="a-preview-seat">
@@ -234,7 +234,7 @@ function Editor({ kind, data, onChange, isNew }: { kind: Kind; data: Record<stri
             <option value="laugh">Emojis qui rient</option><option value="pop">Surprise</option><option value="sad">Larmes</option>
           </select>
         </Field>
-        <PriceField data={data} set={set} />
+        <p className="a-hint">Offert à tous les joueurs (jamais vendu).</p>
         <button className="gbtn gbtn-dark gbtn-sm" onClick={() => { unlockAudio(); previewSound({ file: data.file as string, synth: data.synth as string, volume: Number(data.volume ?? 1) }); }}>▶ Écouter l&apos;aperçu</button>
       </div>
     );
@@ -249,7 +249,7 @@ function Editor({ kind, data, onChange, isNew }: { kind: Kind; data: Record<stri
             <input className="emoji-input" value={String(data.emoji ?? "")} maxLength={8} onChange={(e) => set("emoji", e.target.value)} aria-label="Autre emoji" />
           </div>
         </Field>
-        <PriceField data={data} set={set} />
+        <p className="a-hint">Offert à tous les joueurs (jamais vendu).</p>
       </div>
     );
 

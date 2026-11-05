@@ -30,6 +30,10 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
   - Sons/phrases/réactions offerts (prix 0, plus vendus). Prestige : Émeraude 8 000, Saphir 12 000, Améthyste 20 000, Onyx 25 000 (illustrations PROVISOIRES, recoloration du Royal).
   - Roue : lots § 58, cosmétique non possédé, 24 h glissantes ; fragments au choix (6) ; tous mystères possédés → 30 Doblons/fragment, mystère roue → 100.
   - Aperçu 3D = CSS (plateau tournant), animations de coffre CSS légères.
-- [ ] P7 Admin : droits cosmétiques admin, XP/objets aux joueurs (jamais à soi), coffres/probabilités.
+- [x] P7 Admin : droits cosmétiques admin, XP/objets aux joueurs (jamais à soi), coffres/probabilités.
+  - Accès admin = compte connecté (jeton Supabase vérifié + profil lié + `srv5 owner_check`), revérifié à chaque appel ; plus de mot de passe admin séparé ni de code d'activation. Bouton « Administration » visible seulement si `isAdmin`.
+  - Droits cosmétiques admin calculés à la lecture (`wallet()` → inventaire virtuel source « admin ») : rien n'est écrit, succès/stats/niveaux réels ; `usable` (gobelets utilisables) ≠ `unlocked` (succès).
+  - Ajustements joueurs : Doblons, fragments, XP (jamais sur son propre compte, refusé aussi en base), objet offert, raison + confirmation + journal. Réinit. mot de passe retirée (le joueur passe par « Mot de passe oublié »).
+  - Sons/phrases/réactions : prix verrouillé à 0. Tableau de bord : comptes, Doblons en circulation, coffres, tours de roue, récompenses.
 - [ ] P8 Social : amis, invitations, présence, blocage/signalement, notifications.
 - [ ] P9 PWA + validation finale.

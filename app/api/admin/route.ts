@@ -4,12 +4,11 @@
 //  Toute écriture est enregistrée dans le journal d'audit.
 // =============================================================
 import { AdminError, requireAdmin } from "@/lib/admin";
-import { srv, srv2, srv3 } from "@/lib/srv";
+import { srv, srv2, srv3, srv5 } from "@/lib/srv";
 import { accountOf } from "@/lib/account";
-import { hashPassword } from "@/lib/admin";
-import { EconomyError } from "@/lib/economy";
-import { playerPasswordProblem } from "@/lib/progression";
-import { refreshContent, Row, seedIfEmpty } from "@/lib/content-server";
+import { EconomyError, levelOf } from "@/lib/economy";
+import { catalogOf, ItemType } from "@/lib/progression";
+import { publicContent, refreshContent, Row, seedIfEmpty } from "@/lib/content-server";
 import {
   cleanAppearance, cleanChallenge, cleanCup, cleanEconomy, cleanFrame, cleanMap, cleanPhrase, cleanReaction, cleanSettings, cleanSound,
   cleanVictory, ContentError, slug, Status,
@@ -132,42 +131,45 @@ async function run(op: string, b: Record<string, unknown>, actor: string) {
       return srv("audit_list");
 
     // ---------- économie ----------
-    case "econ_stats":
-      return srv2("econ_stats");
+    case "econ_stats": {
+      const [econ, global] = await Promise.all([srv2<Record<string, unknown>>("econ_stats"), srv5<Record<string, number>>("admin_stats")]);
+      return { ...econ, global };
+    }
 
     case "player_wallet": {
       const id = String(b.id);
-      const [account, wallet] = await Promise.all([accountOf(id), srv2("wallet", { profile_id: id })]);
-      return { account, wallet };
+      const [account, wallet, c] = await Promise.all([accountOf(id), srv2<{ wallet: { xp: number } }>("wallet", { profile_id: id }), publicContent()]);
+      return { account, wallet, level: levelOf(c.economy, wallet.wallet.xp) };
     }
 
     case "player_grant": {
-      // ajustement manuel (compensation, correction) : toujours tracé
+      // ajustement manuel (compensation, correction, objet offert) : toujours tracé
       const reason = String(b.reason ?? "").trim().slice(0, 200);
       if (!reason) throw new ContentError("Indique la raison de l'ajustement");
       if (b.confirm !== true) throw new ContentError("Confirmation manquante");
-      const doblons = Math.round(Number(b.doblons) || 0), fragments = Math.round(Number(b.fragments) || 0);
-      if (Math.abs(doblons) > 100000 || Math.abs(fragments) > 100) throw new ContentError("Montant trop grand");
-      if (!doblons && !fragments) throw new ContentError("Rien à ajuster");
+      const doblons = Math.round(Number(b.doblons) || 0), fragments = Math.round(Number(b.fragments) || 0), xp = Math.round(Number(b.xp) || 0);
+      if (Math.abs(doblons) > 100000 || Math.abs(fragments) > 100 || Math.abs(xp) > 1_000_000) throw new ContentError("Montant trop grand");
       const id = String(b.id);
+      // § 74 : jamais d'XP administrative sur son propre compte (aussi refusé en base)
+      if (xp && id === actor) throw new ContentError("Tes XP se gagnent en jouant : impossible de t'en attribuer");
+      const c = await publicContent();
+      const items: { type: ItemType; id: string }[] = [];
+      if (b.item && typeof b.item === "object") {
+        const it = b.item as { type?: string; id?: string };
+        const type = it.type as ItemType;
+        const pool = type === "cup" ? c.cups.map((x) => ({ id: x.id })) : ["frame", "victory"].includes(String(type)) ? catalogOf(c, type) : [];
+        if (!pool.some((x) => x.id === it.id)) throw new ContentError("Objet inconnu");
+        items.push({ type, id: String(it.id) });
+      }
+      if (!doblons && !fragments && !xp && !items.length) throw new ContentError("Rien à ajuster");
       if (!(await accountOf(id))) throw new ContentError("Ce joueur n'a pas de compte");
-      try {
-        await srv2("grant", { profile_id: id, event_id: `admin:${Date.now()}:${actor}`, kind: "admin", doblons, fragments, detail: { reason, by: actor } });
-      } catch { throw new ContentError("Le solde ne peut pas devenir négatif"); }
-      await srv3("audit_add", { actor, action: "economy.grant", target: id, detail: { doblons, fragments, reason } });
+      const r = await srv5<string>("admin_adjust", { profile_id: id, doblons, fragments, xp, items, detail: { reason, by: actor, items } });
+      if (r === "self_xp") throw new ContentError("Tes XP se gagnent en jouant : impossible de t'en attribuer");
+      if (r === "negative") throw new ContentError("Le solde (Doblons, fragments ou XP) ne peut pas devenir négatif");
+      await srv3("audit_add", { actor, action: "economy.grant", target: id, detail: { doblons, fragments, xp, items, reason } });
       return { ok: true };
     }
 
-    case "player_reset_password": {
-      const pw = String(b.password ?? "");
-      const p = playerPasswordProblem(pw);
-      if (p) throw new ContentError(p);
-      if (b.confirm !== true) throw new ContentError("Confirmation manquante");
-      const ok = await srv3<boolean>("acct_reset", { profile_id: String(b.id), pw_hash: hashPassword(pw) });
-      if (!ok) throw new ContentError("Ce joueur n'a pas de compte");
-      await srv3("audit_add", { actor, action: "account.reset_password", target: String(b.id), detail: null });
-      return { ok: true };
-    }
   }
   throw new ContentError("Opération inconnue");
 }

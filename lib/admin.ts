@@ -1,15 +1,18 @@
 // =============================================================
 //  Sécurité de l'espace admin — côté serveur uniquement.
 //  1. Le rôle « admin » est stocké en base, jamais déduit d'un pseudo.
-//  2. Pour se connecter : profil de l'appareil + mot de passe admin
-//     (haché avec scrypt, 5 essais puis blocage 15 min).
+//  2. Pour se connecter : son COMPTE connecté (jeton Supabase vérifié) ;
+//     seul le compte dont l'e-mail vérifié est celui du propriétaire
+//     (private.admin_owner, lié à son identifiant permanent) est admin.
 //  3. La session = un cookie httpOnly signé (12 h), revérifié en base
 //     à CHAQUE appel. Le navigateur ne voit jamais de clé secrète.
 // =============================================================
 import "server-only";
 import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
-import { srv } from "./srv";
+import { srv, srv4 } from "./srv";
+import { authUser, isOwner, ownerCache } from "./account";
+export { isOwner };
 import { authProfile } from "./profiles";
 
 export const COOKIE = "perudo_admin";
@@ -69,38 +72,22 @@ export async function requireAdmin(req: Request): Promise<{ id: string; name: st
   }
   const id = verifySession((await cookies()).get(COOKIE)?.value);
   if (!id) throw new AdminError("Connexion admin requise", 401);
-  const row = await srv<AdminRow>("admin_get", { profile_id: id });
-  if (!row || row.role !== "admin" || row.blocked) throw new AdminError("Accès refusé", 403);
+  const [row, owner] = await Promise.all([srv<AdminRow>("admin_get", { profile_id: id }), isOwner(id)]);
+  if (!row || row.role !== "admin" || row.blocked || !owner) throw new AdminError("Accès refusé", 403);
   return { id, name: row.name };
 }
 
-/** Connexion : profil de l'appareil (id + clé) + mot de passe admin. */
-export async function login(profileId: string | null, profileKey: string | null, password: string) {
-  const prof = await authProfile(profileId, profileKey);
-  if (!prof) throw new AdminError("Profil inconnu sur cet appareil", 401);
+/** Connexion admin avec son compte : jeton Supabase frais + profil de cet appareil = ce compte. */
+export async function loginWithAccount(req: Request) {
+  const user = await authUser(req);
+  if (!user || !user.email_confirmed_at) throw new AdminError("Connecte-toi d'abord à ton compte (Mon profil)", 401);
+  const prof = await authProfile(req.headers.get("x-profile-id"), req.headers.get("x-profile-key"));
+  const link = await srv4<{ profile_id: string } | null>("link_get", { auth_uid: user.id });
+  if (!prof || !link || link.profile_id !== prof.id) throw new AdminError("Reconnecte ton compte sur cet appareil", 401);
+  await srv4("admin_claim", { auth_uid: user.id }).catch(() => false); // provisionnement : e-mail vérifié du propriétaire uniquement
+  ownerCache.delete(prof.id);
   const row = await srv<AdminRow>("admin_get", { profile_id: prof.id });
-  if (!row || row.role !== "admin" || !row.pw_hash) throw new AdminError("Ce profil n'est pas administrateur", 403);
-  if (row.locked_until && new Date(row.locked_until) > new Date()) throw new AdminError("Trop d'essais : réessaie dans 15 minutes", 429);
-  if (!checkPassword(password, row.pw_hash)) {
-    await srv("admin_fail", { profile_id: prof.id });
-    throw new AdminError("Mot de passe incorrect", 401);
-  }
-  await srv("admin_ok", { profile_id: prof.id });
-  return prof.id;
-}
-
-/** Activation : code à usage unique + choix du mot de passe admin. */
-export async function claim(profileId: string | null, profileKey: string | null, code: string, password: string) {
-  const prof = await authProfile(profileId, profileKey);
-  if (!prof) throw new AdminError("Profil inconnu sur cet appareil", 401);
-  const problem = passwordProblem(password);
-  if (problem) throw new AdminError(problem, 400);
-  const ok = await srv<boolean>("admin_claim", {
-    code_sha256: createHash("sha256").update(code.trim().toUpperCase()).digest("hex"),
-    profile_id: prof.id,
-    pw_hash: hashPassword(password),
-  });
-  if (!ok) throw new AdminError("Code d'activation invalide ou déjà utilisé", 403);
+  if (!row || row.role !== "admin" || row.blocked || !(await isOwner(prof.id))) throw new AdminError("Ce compte n'est pas administrateur", 403);
   return prof.id;
 }
 

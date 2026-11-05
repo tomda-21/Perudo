@@ -12,7 +12,7 @@ import { AVATARS, isAvatarId, isUnlocked, Stats } from "./catalog";
 import { publicContent } from "./content-server";
 import { srv, srv2 } from "./srv";
 import { RuleError, ResultRow } from "./rules";
-import { accountOf, NAME_CHANGES_PER_MONTH, parisMonth } from "./account";
+import { accountOf, isOwner, NAME_CHANGES_PER_MONTH, parisMonth } from "./account";
 import { srv4 } from "./srv";
 
 const sha = (x: string) => createHash("sha256").update(x).digest("hex");
@@ -76,7 +76,10 @@ export async function unlockedCups(id: string, stats: Stats, member: boolean) {
   if (fresh.length) await srv("unlocks_add", { profile_id: id, ids: fresh });
   // mystères / boutique : uniquement ce qui est dans l'inventaire
   const all = new Set(["classic", ...kept, ...now, ...inv.filter((i) => i.type === "cup").map((i) => i.id)]);
-  return { cups, unlocked: cups.filter((c) => all.has(c.id)).map((c) => c.id) };
+  const unlocked = cups.filter((c) => all.has(c.id)).map((c) => c.id);
+  // § 74 : l'admin peut UTILISER tous les gobelets, sans que ses succès soient validés
+  const usable = member && (await isOwner(id)) ? cups.map((c) => c.id) : unlocked;
+  return { cups, unlocked, usable };
 }
 
 /** Stats + compteurs supplémentaires (Phénix, Invincible, annonces). */
@@ -132,7 +135,8 @@ export function computeStats(rows: ResultDb[]): Stats {
 export async function profilePayload(r: Row) {
   const rows = await results(r.id);
   const [stats, account] = await Promise.all([fullStats(r.id, rows), accountOf(r.id)]);
-  const { unlocked, cups } = await unlockedCups(r.id, stats, !!account);
+  const { unlocked, usable, cups } = await unlockedCups(r.id, stats, !!account);
+  const admin = !!account && (await isOwner(r.id));
   return {
     profile: {
       id: r.id, name: r.name, avatar: r.avatar, hasPhoto: !!r.photo, photoV: r.photo_v,
@@ -141,7 +145,9 @@ export async function profilePayload(r: Row) {
     // privé : visible uniquement par le titulaire (jamais dans les fiches publiques)
     account: account ? { login: account.public_id, since: account.created_at, email: account.email, nameChangesLeft: Math.max(0, NAME_CHANGES_PER_MONTH - account.name_changes) } : null,
     stats,
-    unlocked,
+    unlocked, // succès réels (jamais validés artificiellement)
+    usable, // gobelets utilisables (tous pour l'admin)
+    isAdmin: admin, // affiche l'accès Administration (droits revérifiés côté serveur)
     cups,
     recent: [], // pas d'historique détaillé des parties côté joueur (statistiques agrégées seulement)
   };
@@ -177,8 +183,8 @@ export async function updateProfile(r: Row, patch: Record<string, unknown>) {
   if ("cup" in patch) {
     // le déblocage est vérifié ici, côté serveur, depuis les vrais résultats
     const stats = await fullStats(r.id);
-    const { unlocked } = await unlockedCups(r.id, stats, await isMember(r.id));
-    if (!unlocked.includes(String(patch.cup))) throw new RuleError("Ce gobelet n'est pas encore débloqué");
+    const { usable } = await unlockedCups(r.id, stats, await isMember(r.id));
+    if (!usable.includes(String(patch.cup))) throw new RuleError("Ce gobelet n'est pas encore débloqué");
     next.cup = String(patch.cup);
   }
   await putRow(next);

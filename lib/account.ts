@@ -9,7 +9,7 @@
 import "server-only";
 import { createHash, randomBytes } from "crypto";
 import { createClient } from "@supabase/supabase-js";
-import { srv2, srv4 } from "./srv";
+import { srv2, srv4, srv5 } from "./srv";
 
 export type AccountInfo = { login: string; public_id: string; created_at: string; email: string | null; name_changes: number };
 
@@ -41,4 +41,15 @@ export async function deviceKey(profileId: string) {
   const key = randomBytes(24).toString("hex");
   await srv2("device_add", { profile_id: profileId, key_sha256: createHash("sha256").update(key).digest("hex") });
   return key;
+}
+
+/** Le profil est-il celui du compte administrateur (contrôlé en base) ? Petit cache de 30 s. */
+export const ownerCache = new Map<string, { v: boolean; at: number }>();
+export async function isOwner(profileId: string | null | undefined) {
+  if (!profileId || !/^[0-9a-f-]{36}$/i.test(profileId)) return false;
+  const c = ownerCache.get(profileId);
+  if (c && Date.now() - c.at < 30_000) return c.v;
+  const v = await srv5<boolean>("owner_check", { profile_id: profileId }).catch(() => false);
+  ownerCache.set(profileId, { v, at: Date.now() });
+  return v;
 }

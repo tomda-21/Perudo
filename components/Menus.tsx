@@ -39,8 +39,7 @@ async function shrinkPhoto(file: File): Promise<string> {
 // ---------- MON PROFIL ----------
 export function ProfileModal({ onClose, profile, prog }: { onClose: () => void; profile: ReturnType<typeof useMyProfile>; prog: ProgressState }) {
   const { data, setData, error } = profile;
-  const [isAdmin, setIsAdmin] = useState(false);
-  useEffect(() => { fetch("/api/admin/login", { cache: "no-store" }).then((r) => r.json()).then((r) => setIsAdmin(!!r.admin)).catch(() => {}); }, []);
+  const isAdmin = !!data?.isAdmin; // visible seulement pour le compte administrateur
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -188,7 +187,7 @@ export function CupsModal({ onClose, profile, prog, openShop }: { onClose: () =>
           {list.length === 0 ? <p className="muted center-text">Aucun gobelet dans cette catégorie pour l&apos;instant.</p> : (
             <div className="cup-grid">
               {list.map((c) => {
-                const unlocked = data.unlocked.includes(c.id);
+                const unlocked = (data.usable ?? data.unlocked).includes(c.id);
                 const equipped = data.profile.cup === c.id;
                 const pr = condProgress(c.cond, data.stats);
                 return (

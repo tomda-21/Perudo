@@ -6,7 +6,6 @@
 // =============================================================
 import "server-only";
 import { createHash, randomBytes, randomInt } from "crypto";
-import { checkPassword, hashPassword } from "./admin";
 import { publicContent } from "./content-server";
 import type { CupItem, PublicContent, Rarity } from "./content";
 import { CHEST_CATS, ChestCat, drawChest, drawPrize, EconomyConfig, rarityFallbacks, levelOf, levelRewardsUpTo, periodEnd, periodKeys, pickChallenges, titlesUnlocked, ChallengeItem } from "./economy";
@@ -26,37 +25,9 @@ type WalletDb = {
   now: string;
 };
 
-// ---------------- comptes ----------------
-const LOGIN_RE = /^[a-z0-9_.-]{3,20}$/;
-export const cleanLogin = (x: unknown) => String(x ?? "").trim().toLowerCase();
-export const loginProblem = (l: string) => (LOGIN_RE.test(l) ? null : "Identifiant : 3 à 20 caractères (lettres, chiffres, . _ -)");
-export const playerPasswordProblem = (pw: string) => (pw.length < 8 ? "Le mot de passe doit faire au moins 8 caractères" : pw.length > 100 ? "Mot de passe trop long" : null);
-
-import { accountOf } from "./account";
+// ---------------- comptes (e-mail : voir lib/account.ts) ----------------
+import { accountOf, isOwner } from "./account";
 export { accountOf };
-
-/** Transforme le profil invité de cet appareil en compte permanent (il garde ses stats). */
-export async function createAccount(profileId: string, login: string, password: string) {
-  const p = loginProblem(login) ?? playerPasswordProblem(password);
-  if (p) throw new RuleError(p);
-  const r = await srv2<string>("acct_create", { profile_id: profileId, login, pw_hash: hashPassword(password) });
-  if (r === "taken") throw new RuleError("Cet identifiant est déjà pris");
-  if (r === "has_account") throw new RuleError("Ce profil a déjà un compte");
-}
-
-/** Connexion depuis un autre appareil : renvoie une nouvelle clé pour cet appareil. */
-export async function loginAccount(login: string, password: string) {
-  const a = await srv2<{ profile_id: string; pw_hash: string; failed: number; locked_until: string | null } | null>("acct_by_login", { login });
-  // même message dans tous les cas : on ne révèle pas si l'identifiant existe
-  const bad = new RuleError("Identifiant ou mot de passe incorrect");
-  if (!a) { checkPassword(password, "scrypt$00$00"); throw bad; }
-  if (a.locked_until && new Date(a.locked_until) > new Date()) throw new RuleError("Trop d'essais : réessaie dans 15 minutes");
-  if (!checkPassword(password, a.pw_hash)) { await srv2("acct_fail", { profile_id: a.profile_id }); throw bad; }
-  await srv2("acct_ok", { profile_id: a.profile_id });
-  const key = randomBytes(24).toString("hex");
-  await srv2("device_add", { profile_id: a.profile_id, key_sha256: sha(key) });
-  return { id: a.profile_id, key };
-}
 
 /** Clé d'un appareil connecté à un compte ? (en plus de la clé d'origine du profil) */
 export async function deviceKeyOwner(key: string) {
@@ -81,9 +52,32 @@ export function ownedIds(c: PublicContent, inv: Inv[], type: Exclude<ItemType, "
   return catalogOf(c, type).filter((x) => (x.price === 0 && !x.reward) || owns(inv, type, x.id)).map((x) => x.id);
 }
 
-export async function wallet(profileId: string) {
-  return srv2<WalletDb>("wallet", { profile_id: profileId });
+/**
+ * § 74 : le compte administrateur a accès à TOUS les cosmétiques, présents et futurs.
+ * Droit calculé à la lecture (source « admin ») : rien n'est acheté, gagné ni écrit
+ * en base, et ni les succès, ni les stats, ni les niveaux ne sont touchés.
+ */
+function adminInventory(c: PublicContent): Inv[] {
+  const at = new Date(0).toISOString();
+  const it = (type: ItemType, ids: string[]) => ids.map((id) => ({ type, id, source: "admin", at }));
+  return [
+    ...it("cup", c.cups.map((x) => x.id)), ...it("frame", c.frames.map((x) => x.id)), ...it("victory", c.victories.map((x) => x.id)),
+    ...it("phrase", c.phrases.map((x) => x.id)), ...it("sound", c.sounds.map((x) => x.id)), ...it("reaction", c.reactions.map((x) => x.id)),
+  ];
 }
+export async function wallet(profileId: string) {
+  const [w, admin] = await Promise.all([srv2<WalletDb>("wallet", { profile_id: profileId }), isOwner(profileId)]);
+  if (admin) {
+    const c = await publicContent();
+    const have = new Set(w.inventory.map((i) => `${i.type}:${i.id}`));
+    w.inventory = [...w.inventory, ...adminInventory(c).filter((i) => !have.has(`${i.type}:${i.id}`))];
+    (w as WalletDb & { admin?: boolean }).admin = true;
+  }
+  return w;
+}
+/** Titres utilisables : ceux débloqués, ou tous pour l'administrateur (cosmétique). */
+const titlesFor = (e: EconomyConfig, level: number, cups: string[], admin: boolean) => (admin ? e.titles : titlesUnlocked(e, level, cups));
+const isAdminWallet = (w: WalletDb) => !!(w as WalletDb & { admin?: boolean }).admin;
 
 // ---------------- récompenses de fin de partie ----------------
 export function isOfficial(r: ResultRow, e: EconomyConfig) {
@@ -174,7 +168,7 @@ export async function progressionPayload(profileId: string, isMember: boolean, u
   const k = periodKeys();
   const [w, prog] = await Promise.all([wallet(profileId), srv2<Record<string, number>>("progress_get", { profile_id: profileId, periods: [k.day, k.week] })]);
   const lvl = levelOf(e, w.wallet.xp);
-  const titles = titlesUnlocked(e, lvl.level, unlockedCups);
+  const titles = titlesFor(e, lvl.level, unlockedCups, isAdminWallet(w));
   const now = new Date(w.now);
   const nextSpin = w.wallet.last_spin ? new Date(new Date(w.wallet.last_spin).getTime() + e.wheel.cooldownHours * 3600_000) : null;
   return {
@@ -361,7 +355,7 @@ export async function equip(profileId: string, field: "title" | "frame" | "victo
   if (value) {
     if (field === "title") {
       const lvl = levelOf(c.economy, w.wallet.xp).level;
-      if (!titlesUnlocked(c.economy, lvl, unlockedCups).some((t) => t.id === value)) throw new RuleError("Titre pas encore débloqué");
+      if (!titlesFor(c.economy, lvl, unlockedCups, isAdminWallet(w)).some((t) => t.id === value)) throw new RuleError("Titre pas encore débloqué");
     } else if (!ownedIds(c, w.inventory, field).includes(value)) throw new RuleError("Tu ne possèdes pas cet objet");
   }
   await srv2("equip", { profile_id: profileId, field, value });
@@ -374,7 +368,7 @@ export async function cosmeticsOf(profileId: string | null | undefined) {
   const w = await wallet(profileId);
   const lvl = levelOf(c.economy, w.wallet.xp).level;
   const kept = await srv<string[]>("unlocks_get", { profile_id: profileId });
-  const titles = titlesUnlocked(c.economy, lvl, [...kept, ...w.inventory.filter((i) => i.type === "cup").map((i) => i.id)]);
+  const titles = titlesFor(c.economy, lvl, [...kept, ...w.inventory.filter((i) => i.type === "cup").map((i) => i.id)], isAdminWallet(w));
   const fr = ownedIds(c, w.inventory, "frame"), vi = ownedIds(c, w.inventory, "victory");
   return {
     frame: w.wallet.frame && fr.includes(w.wallet.frame) ? w.wallet.frame : null,

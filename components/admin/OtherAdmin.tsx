@@ -7,6 +7,7 @@ import Logo from "../Logo";
 import Cup from "../Cup";
 import { adminApi, Confirm, Field, FileField, fmt } from "./kit";
 import { Appearance, DEFAULT_APPEARANCE, DEFAULT_SETTINGS, GameSettings } from "@/lib/content";
+import { useContent } from "@/lib/content-client";
 
 type Overview = {
   players: number; admins: number; blocked: number; finished: number; live: number; lobbies: number; games_today: number;
@@ -27,9 +28,15 @@ const ACTIONS: Record<string, string> = {
 export function Dashboard() {
   const [o, setO] = useState<Overview | null>(null);
   const [err, setErr] = useState("");
-  useEffect(() => { adminApi<Overview>("overview").then(setO).catch((e) => setErr(e.message)); }, []);
+  const [g, setG] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    adminApi<Overview>("overview").then(setO).catch((e) => setErr(e.message));
+    adminApi<{ global: Record<string, number> }>("econ_stats").then((r) => setG(r.global)).catch(() => {});
+  }, []);
   if (!o) return <p className="muted">{err || "Chargement…"}</p>;
   const cards = [
+    ...(g ? [["🔐", g.accounts, "Comptes (e-mail)"], ["🪙", g.doblons, "Doblons en circulation"], ["🧰", g.chests, "Coffres ouverts"],
+      ["🎡", g.spins, "Tours de roue"], ["🎁", g.rewards, "Récompenses versées"]] as const : []),
     ["👥", o.players, "Joueurs inscrits"], ["🏁", o.finished, "Parties terminées (comptées)"], ["🎲", o.live, "Parties en cours"],
     ["🚪", o.lobbies, "Salles d'attente ouvertes"], ["📅", o.games_today, "Salons créés (24 h)"],
     ["🥤", o.content.cup ?? 6, "Gobelets publiés"], ["🗺️", o.content.map ?? 4, "Maps publiées"],
@@ -294,7 +301,8 @@ export function AuditAdmin() {
 
 // ---------- portefeuille d'un joueur (dans la fiche joueur) ----------
 type WalletResp = {
-  account: { login: string; created_at: string } | null;
+  account: { login: string; created_at: string; email?: string | null } | null;
+  level?: { level: number; into: number; need: number };
   wallet: { wallet: { doblons: number; xp: number; fragments: number; last_spin: string | null; title: string | null }; inventory: { type: string; id: string; source: string; at: string }[];
     ledger: { id: number; kind: string; doblons: number; xp: number; fragments: number; detail: Record<string, unknown> | null; at: string }[] };
 };
@@ -302,8 +310,12 @@ function PlayerEconomy({ id, name }: { id: string; name: string }) {
   const [w, setW] = useState<WalletResp | null>(null);
   const [msg, setMsg] = useState("");
   const [grant, setGrant] = useState(false);
-  const [reset, setReset] = useState(false);
-  const [f, setF] = useState({ doblons: 0, fragments: 0, reason: "", password: "" });
+  const [f, setF] = useState({ doblons: 0, fragments: 0, xp: 0, reason: "", item: "" });
+  const content = useContent();
+  const itemOptions = [
+    ...content.cups.map((c) => ({ v: `cup:${c.id}`, l: `🥤 ${c.name}` })), ...content.frames.map((c) => ({ v: `frame:${c.id}`, l: `🖼️ ${c.name}` })),
+    ...content.victories.map((c) => ({ v: `victory:${c.id}`, l: `🎆 ${c.name}` })),
+  ];
   const load = () => adminApi<WalletResp>("player_wallet", { id }).then(setW).catch((e) => setMsg(e.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [id]);
@@ -312,9 +324,10 @@ function PlayerEconomy({ id, name }: { id: string; name: string }) {
   const x = w.wallet.wallet;
   return (
     <div className="a-section">
-      <div className="section-title">Compte « {w.account.login} » — portefeuille</div>
+      <div className="section-title">Compte #{w.account.login}{w.account.email ? ` · ${w.account.email}` : ""} — portefeuille</div>
       <div className="stat-grid">
         <div className="stat"><div className="stat-value">🪙 {x.doblons}</div><div className="stat-label">Doblons</div></div>
+        <div className="stat"><div className="stat-value">⭐ {w.level?.level ?? "?"}</div><div className="stat-label">Niveau</div></div>
         <div className="stat"><div className="stat-value">✨ {x.xp}</div><div className="stat-label">XP</div></div>
         <div className="stat"><div className="stat-value">🧩 {x.fragments}</div><div className="stat-label">Fragments</div></div>
         <div className="stat"><div className="stat-value">🎡</div><div className="stat-label">{x.last_spin ? `roue : ${fmt(x.last_spin)}` : "roue jamais tournée"}</div></div>
@@ -322,35 +335,30 @@ function PlayerEconomy({ id, name }: { id: string; name: string }) {
       <p className="muted small">Inventaire : {w.wallet.inventory.length ? w.wallet.inventory.map((i) => `${i.type}:${i.id} (${i.source})`).join(", ") : "vide"}</p>
       <ul className="a-mini">{w.wallet.ledger.slice(0, 15).map((l) => <li key={l.id}>{l.kind} · {l.doblons > 0 ? "+" : ""}{l.doblons} 🪙 {l.xp ? `· +${l.xp} XP` : ""} {l.fragments ? `· ${l.fragments} 🧩` : ""} <span className="muted small">{fmt(l.at)}</span></li>)}</ul>
       <div className="row">
-        <button className="gbtn gbtn-purple gbtn-sm" onClick={() => setGrant(true)}>Ajuster le solde</button>
-        <button className="gbtn gbtn-dark gbtn-sm" onClick={() => setReset(true)}>Nouveau mot de passe</button>
+        <button className="gbtn gbtn-purple gbtn-sm" onClick={() => setGrant(true)}>Ajuster / offrir</button>
       </div>
+      <p className="muted small">Mot de passe oublié : le joueur utilise « Mot de passe oublié ? » (lien par e-mail). L&apos;admin ne voit ni ne choisit jamais les mots de passe.</p>
       {msg && <p className="hint">{msg}</p>}
       {grant && (
         <Confirm title={`Ajuster le solde de ${name}`} danger="Appliquer"
           text={<div className="a-form">
             <Field label="Doblons (négatif pour retirer)"><input type="number" value={f.doblons} onChange={(e) => setF({ ...f, doblons: Number(e.target.value) })} /></Field>
             <Field label="Fragments (négatif pour retirer)"><input type="number" value={f.fragments} onChange={(e) => setF({ ...f, fragments: Number(e.target.value) })} /></Field>
+            <Field label="XP (négatif pour corriger) — impossible sur ton propre compte"><input type="number" value={f.xp} onChange={(e) => setF({ ...f, xp: Number(e.target.value) })} /></Field>
+            <Field label="Offrir un objet (facultatif)">
+              <select value={f.item} onChange={(e) => setF({ ...f, item: e.target.value })}>
+                <option value="">— aucun —</option>
+                {itemOptions.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+              </select>
+            </Field>
             <Field label="Raison (obligatoire, visible dans le journal)"><input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></Field>
           </div>}
           onNo={() => setGrant(false)}
           onYes={async () => {
-            try { await adminApi("player_grant", { id, doblons: f.doblons, fragments: f.fragments, reason: f.reason, confirm: true }); setMsg("Ajustement appliqué ✓"); load(); }
+            const [type, iid] = f.item ? f.item.split(":") : [];
+            try { await adminApi("player_grant", { id, doblons: f.doblons, fragments: f.fragments, xp: f.xp, item: f.item ? { type, id: iid } : null, reason: f.reason, confirm: true }); setMsg("Ajustement appliqué ✓"); load(); }
             catch (e) { setMsg((e as Error).message); }
             setGrant(false);
-          }} />
-      )}
-      {reset && (
-        <Confirm title="Nouveau mot de passe" danger="Remplacer"
-          text={<div className="a-form">
-            <p>Pour un joueur qui a oublié son mot de passe. Ses autres appareils seront déconnectés. Transmets-lui le nouveau mot de passe en privé.</p>
-            <Field label="Nouveau mot de passe (8 caractères min.)"><input value={f.password} onChange={(e) => setF({ ...f, password: e.target.value })} /></Field>
-          </div>}
-          onNo={() => setReset(false)}
-          onYes={async () => {
-            try { await adminApi("player_reset_password", { id, password: f.password, confirm: true }); setMsg("Mot de passe remplacé ✓"); }
-            catch (e) { setMsg((e as Error).message); }
-            setReset(false); setF({ ...f, password: "" });
           }} />
       )}
     </div>

@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Scene from "@/components/Scene";
 import Logo from "@/components/Logo";
-import { api, getProfileCreds } from "@/lib/client";
+import { api, auth, getProfileCreds, syncAccount } from "@/lib/client";
 import ContentAdmin from "@/components/admin/ContentAdmin";
 import EconomyAdmin from "@/components/admin/EconomyAdmin";
 import { AppearanceAdmin, AuditAdmin, Dashboard, PlayersAdmin, SettingsAdmin } from "@/components/admin/OtherAdmin";
@@ -70,53 +70,38 @@ export default function AdminPage() {
 }
 
 function Login({ onDone }: { onDone: () => void }) {
-  const [mode, setMode] = useState<"login" | "claim">("login");
-  const [password, setPassword] = useState("");
-  const [password2, setPassword2] = useState("");
-  const [code, setCode] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // § 67 : l'accès suit le COMPTE connecté (e-mail vérifié), jamais un pseudo ni une valeur du navigateur
   async function submit() {
-    setErr("");
-    if (mode === "claim" && password !== password2) return setErr("Les deux mots de passe ne sont pas identiques");
-    setBusy(true);
+    setErr(""); setBusy(true);
     try {
-      await api.myProfile(); // le profil de cet appareil (créé au besoin)
+      await syncAccount().catch(() => {});
+      const { data } = await auth().getSession();
+      if (!data.session) throw new Error("Connecte-toi d'abord à ton compte : Accueil → Mon profil → Me connecter.");
+      await api.myProfile();
       const c = getProfileCreds();
       const r = await fetch("/api/admin/login", {
         method: "POST",
-        headers: { "content-type": "application/json", ...(c ? { "x-profile-id": c.id, "x-profile-key": c.key } : {}) },
-        body: JSON.stringify({ mode, code, password }),
+        headers: { "content-type": "application/json", authorization: `Bearer ${data.session.access_token}`, ...(c ? { "x-profile-id": c.id, "x-profile-key": c.key } : {}) },
+        body: JSON.stringify({ mode: "account" }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error ?? "Connexion refusée");
       onDone();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
+  // essai automatique : si le compte admin est déjà connecté, on entre directement
+  useEffect(() => { submit(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   return (
     <main className="center-screen">
       <Scene id="casino" />
       <div className="panel stack narrow">
         <div className="panel-title"><span>Perudo Admin</span></div>
-        {mode === "login" ? (
-          <>
-            <p className="muted small center-text">Réservé au créateur du jeu. Connexion avec le profil de cet appareil + ton mot de passe admin.</p>
-            <input type="password" placeholder="Mot de passe admin" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} autoComplete="current-password" />
-            <button className="gbtn gbtn-gold gbtn-xl" disabled={busy || !password} onClick={submit}>🔐 Se connecter</button>
-            <button className="a-link" onClick={() => { setMode("claim"); setErr(""); }}>Première fois ? J&apos;ai un code d&apos;activation</button>
-          </>
-        ) : (
-          <>
-            <p className="muted small center-text">Le code d&apos;activation (à usage unique) fait de <b>ce profil</b> le compte administrateur. Choisis ensuite ton mot de passe admin.</p>
-            <input placeholder="Code d'activation" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
-            <input type="password" placeholder="Nouveau mot de passe (10 caractères min.)" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
-            <input type="password" placeholder="Confirme le mot de passe" value={password2} onChange={(e) => setPassword2(e.target.value)} autoComplete="new-password" />
-            <button className="gbtn gbtn-gold gbtn-xl" disabled={busy || !code || !password} onClick={submit}>✨ Activer mon compte admin</button>
-            <button className="a-link" onClick={() => { setMode("login"); setErr(""); }}>J&apos;ai déjà un mot de passe</button>
-          </>
-        )}
+        <p className="muted small center-text">Réservé au compte administrateur. L&apos;accès se fait avec ton compte connecté (aucun mot de passe supplémentaire).</p>
+        <button className="gbtn gbtn-gold gbtn-xl" disabled={busy} onClick={submit}>{busy ? "Vérification…" : "🔐 Entrer avec mon compte"}</button>
         {err && <p className="error">{err}</p>}
         <Link href="/" className="plaque-btn">🏠 Accueil</Link>
       </div>
