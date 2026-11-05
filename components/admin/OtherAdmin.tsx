@@ -55,11 +55,30 @@ export function Dashboard() {
         <div className="a-box"><h3>Nouveaux joueurs</h3>
           <ul className="a-mini">{o.recent_players.map((p, i) => <li key={i}>👤 {p.name} <span className="muted small">{fmt(p.created_at)}</span></li>)}</ul>
         </div>
+        <Reports />
         <div className="a-box"><h3>Activité admin</h3>
           {o.recent_audit.length === 0 ? <p className="muted small">Rien pour l&apos;instant.</p> :
             <ul className="a-mini">{o.recent_audit.map((a, i) => <li key={i}>{ACTIONS[a.action] ?? a.action}{a.target ? ` · ${a.target}` : ""} <span className="muted small">{fmt(a.at)}</span></li>)}</ul>}
         </div>
       </div>
+    </div>
+  );
+}
+
+type Report = { id: number; reason: string; at: string; handled: boolean; reporter: string | null; target: string | null };
+function Reports() {
+  const [list, setList] = useState<Report[] | null>(null);
+  const load = () => adminApi<Report[]>("reports").then(setList).catch(() => setList([]));
+  useEffect(() => { load(); }, []);
+  const open = (list ?? []).filter((r) => !r.handled);
+  return (
+    <div className="a-box"><h3>Signalements {open.length ? `(${open.length})` : ""}</h3>
+      {!list ? <p className="muted small">Chargement…</p> : open.length === 0 ? <p className="muted small">Aucun signalement en attente.</p> :
+        <ul className="a-mini">{open.map((r) => (
+          <li key={r.id}>🚩 <b>{r.target ?? "?"}</b> par {r.reporter ?? "?"} : « {r.reason} » <span className="muted small">{fmt(r.at)}</span>{" "}
+            <button className="a-link" onClick={async () => { await adminApi("report_handled", { id: r.id }); load(); }}>Traité</button></li>
+        ))}</ul>}
+      <p className="muted small">Pour bloquer un compte : onglet Joueurs.</p>
     </div>
   );
 }

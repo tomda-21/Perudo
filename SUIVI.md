@@ -25,7 +25,7 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
   - Volumes séparés : Général, Effets sonores, Musique, Ambiance (musique/ambiance : pas encore de pistes audio, réglages prêts).
   - Dés perso affichés en permanence près de l'avatar (réglage `showDice`, bouton Cacher/Voir) ; petit zoom caméra à chaque révélation ; bannière PALIFICO ; gobelet renversé pour les éliminés ; gobelin commentateur (Dudo raté, Exact réussi, élimination, victoire — après révélation seulement).
   - Vérifié en paysage 844×390 / 932×430, portrait 390×844, bureau 1440×900 : aucun bouton hors écran.
-- [ ] P4 Maps : 8 maps (3 nouvelles), décors HD manquants (fournis par Tom).
+- [~] P4 Maps (abandonné à la demande de Tom : une seule map, travaillée au maximum) : 8 maps (3 nouvelles), décors HD manquants (fournis par Tom).
 - [x] P5 Progression : nouveaux gains, formule de niveau, paliers, 3 défis/j + 1 hebdo, classements amis, succès.
   - `lib/economy.ts` (valeurs § 40–42, `levelRewardsUpTo`), `lib/progression.ts` (`grantLevelRewards`, `challengeReward`), cadres de palier `bronze-gobelin` / `gold-anim` (reward: jamais vendus), `lib/ranking.ts` + `lib/ranking-server.ts` (`srv5 rank_stats`). Toute partie terminée compte (bots compris), invités exclus.
   - Restes : affichage des classements = P8 (amis) ; fragments au choix / conversions 30 Doblons = P6.
@@ -39,5 +39,6 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
   - Droits cosmétiques admin calculés à la lecture (`wallet()` → inventaire virtuel source « admin ») : rien n'est écrit, succès/stats/niveaux réels ; `usable` (gobelets utilisables) ≠ `unlocked` (succès).
   - Ajustements joueurs : Doblons, fragments, XP (jamais sur son propre compte, refusé aussi en base), objet offert, raison + confirmation + journal. Réinit. mot de passe retirée (le joueur passe par « Mot de passe oublié »).
   - Sons/phrases/réactions : prix verrouillé à 0. Tableau de bord : comptes, Doblons en circulation, coffres, tours de roue, récompenses.
-- [ ] P8 Social : amis, invitations, présence, blocage/signalement, notifications.
+- [x] P8 Social : amis, invitations, présence, blocage/signalement, notifications.
+  - `srv6` + tables `friendships`, `blocks`, `reports`, `notifications`, `presence` ; `app/api/social` ; `components/Friends.tsx` (Amis / Classements / Notifications / Moi). Demande par identifiant public, demande croisée = acceptée, présence (en ligne < 2 min, en partie = code du salon, masquable), invitations depuis la salle d'attente, blocage (retire l'amitié, bloque demandes et invitations), signalements visibles dans l'admin (tableau de bord), vitrine de 3 gobelets possédés.
 - [ ] P9 PWA + validation finale.

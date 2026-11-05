@@ -12,6 +12,7 @@ import { CallFx, Countdown, DESKTOP, DieImg, G, MapIntro, MOBILE, Stage, useLayo
 import { DesktopBar, MobileBar } from "@/components/GameBar";
 import Victory from "@/components/Victory";
 import Avatar from "@/components/Avatar";
+import { InviteFriends, useSocial } from "@/components/Friends";
 import { Modal } from "@/components/Panel";
 import { SettingsModal } from "@/components/Menus";
 import { Lobby } from "@/components/GameControls";
@@ -49,6 +50,7 @@ export default function GamePage() {
   const [pali, setPali] = useState<{ name: string; key: number } | null>(null);
   const [panel, setPanel] = useState<null | "sounds" | "phrases" | "reactions">(null);
   const [prog, setProg] = useState<Progress | null>(null);
+  useSocial(!!prog?.member, code); // présence « en partie » pour mes amis
   const [gain, setGain] = useState<{ doblons: number; xp: number } | null>(null);
   const [dialog, setDialog] = useState<null | "quit" | "settings">(null);
   const [callFx, setCallFx] = useState<null | { kind: "liar" | "exact"; success: boolean; key: number }>(null);
@@ -269,7 +271,7 @@ export default function GamePage() {
 
   // panneau du bas hors scène (salle d'attente, révélation) : même emplacement sur ordinateur
   const lowerPanel = view.phase === "lobby"
-    ? <Lobby view={view} isHost={me.isHost} busy={busy} copied={copied} onShare={share} act={act} />
+    ? <><Lobby view={view} isHost={me.isHost} busy={busy} copied={copied} onShare={share} act={act} />{prog?.member && <InviteFriends code={code} />}</>
     : view.phase === "reveal"
       ? <div className="reveal-actions">
           <span className="reveal-auto">Manche suivante dans <Countdown deadline={view.deadline} skew={skew.current} /></span>

@@ -16,10 +16,12 @@ import { useContent } from "@/lib/content-client";
 import { CupsModal, ProfileModal, RulesModal, SettingsModal, useMyProfile } from "@/components/Menus";
 import { ChallengesModal, ShopModal, useProgress, WheelModal } from "@/components/Progress";
 import { EarnModal, PlayModal, SuccessModal } from "@/components/HomeModals";
+import { FriendsModal, useSocial } from "@/components/Friends";
+import { Modal } from "@/components/Panel";
 import { sounds, unlockAudio } from "@/lib/sound";
 import { useSettings } from "@/lib/settings";
 
-type Menu = null | "play" | "profile" | "cups" | "settings" | "rules" | "wheel" | "shop" | "challenges" | "success" | "earn";
+type Menu = null | "friends" | "play" | "profile" | "cups" | "settings" | "rules" | "wheel" | "shop" | "challenges" | "success" | "earn";
 const A = "/art/home/";
 const STAGE_W = 2348, STAGE_H = 1284;
 
@@ -107,6 +109,7 @@ export default function Home() {
   const open = (m: Menu) => { unlockAudio(); sounds.bid(); setMenu(m); };
   const me = profile.data?.profile;
   const p = prog.data;
+  const social = useSocial(!!p?.member); // présence + notifications (comptes uniquement)
   const wheelCd = useCountdown(p?.member ? p.wheel.next : null);
   const wheelChip = !p ? "…" : !p.member ? "Connexion" : p.wheel.ready || !wheelCd ? "Prête !" : wheelCd;
 
@@ -161,6 +164,7 @@ export default function Home() {
   );
   const TopButtons = (
     <>
+      <button className="hp-btn hp-friends" onClick={() => open("friends")}><span className="hp-emo">👥</span><span>Amis</span>{social.unread > 0 && <i className="hp-badge">{social.unread}</i>}</button>
       <button className="hp-btn" onClick={() => open("cups")}><img src={`${A}ico-trophy.webp`} alt="" /><span>Mes gobelets</span></button>
       <button className="hp-btn" onClick={() => open("profile")}><img src={`${A}ico-profile.webp`} alt="" /><span>Mon profil</span></button>
       <button className="hp-gear" onClick={() => open("settings")} aria-label="Paramètres"><img src={`${A}ico-gear.webp`} alt="" /></button>
@@ -220,7 +224,7 @@ export default function Home() {
             <span className="fx-waterfall m-wf" />
             <div className="fx-motes" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <span key={i} style={{ left: `${(i * 41) % 100}%`, animationDelay: `${(i * 1.7) % 9}s` }} />)}</div>
           </div>
-          <div className="m-top">{ProfileBadge}<div className="m-top-right">{Wallet}<button className="hp-gear" onClick={() => open("settings")} aria-label="Paramètres"><img src={`${A}ico-gear.webp`} alt="" /></button></div></div>
+          <div className="m-top">{ProfileBadge}<div className="m-top-right">{Wallet}<button className="hp-gear hp-friends-m" onClick={() => open("friends")} aria-label="Amis"><span>👥</span>{social.unread > 0 && <i className="hp-badge">{social.unread}</i>}</button><button className="hp-gear" onClick={() => open("settings")} aria-label="Paramètres"><img src={`${A}ico-gear.webp`} alt="" /></button></div></div>
           <div className="m-logo"><Logo image={appearance.logo} shine={!calm} /><img className="hdie die-float m-die" src={`${A}die-a.webp`} alt="" /></div>
           <div className="m-middle">
             <img className="goblin m-goblin" src={goblin} alt="Le gobelin, mascotte de Perudo" draggable={false} />
@@ -235,6 +239,10 @@ export default function Home() {
 
       {menu === "play" && <PlayModal name={name} setName={setName} code={code} setCode={setCode} busy={busy} error={error}
         onCreate={() => go("create")} onJoin={() => go("join")} onRules={() => setMenu("rules")} onClose={() => setMenu(null)} />}
+      {menu === "friends" && (p?.member
+        ? <FriendsModal social={social} myPublicId={profile.data?.account?.login ?? null} onClose={() => { setMenu(null); social.load(); }}
+            usableCups={(profile.data?.cups ?? []).filter((c) => (profile.data?.usable ?? profile.data?.unlocked ?? []).includes(c.id)).map((c) => ({ id: c.id, name: c.name }))} />
+        : <Modal title="Amis" onClose={() => setMenu(null)}><p className="center-text">Les amis, invitations et classements sont réservés aux joueurs avec un compte.</p><p className="center-text"><button className="gbtn gbtn-gold" onClick={() => setMenu("profile")}>Créer mon compte</button></p></Modal>)}
       {menu === "profile" && <ProfileModal profile={profile} prog={prog} onClose={() => setMenu(null)} />}
       {menu === "cups" && <CupsModal profile={profile} prog={prog} openShop={() => setMenu("shop")} onClose={() => setMenu(null)} />}
       {menu === "settings" && <SettingsModal onClose={() => setMenu(null)} />}

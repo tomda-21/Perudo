@@ -94,6 +94,9 @@ export const api = {
   progress: () => call<Progress>("/api/progress", { profile: true }),
   progressAction: <T = unknown>(body: Record<string, unknown>) =>
     call<{ result: T; progress: Progress }>("/api/progress", { method: "POST", profile: true, body: JSON.stringify(body) }),
+  social: (game?: string) => call<Social>(`/api/social${game ? `?game=${game}` : ""}`, { profile: true }),
+  socialAction: (body: Record<string, unknown>) =>
+    call<{ ok: boolean; message?: string }>("/api/social", { method: "POST", profile: true, body: JSON.stringify(body) }),
   deleteAccount: (bearer: string) =>
     call<{ ok: true }>("/api/account", { method: "POST", profile: true, bearer, body: JSON.stringify({ op: "delete", confirm: "SUPPRIMER" }) }),
   state: (code: string, token?: string) => call<PlayerView>(`/api/games/${code}`, { token }),
@@ -145,3 +148,15 @@ export function authError(e: unknown) {
   if (/invalid.*email|unable to validate email/i.test(m)) return "Adresse e-mail invalide";
   return m || "Erreur réseau";
 }
+
+// ---------- amis ----------
+export type Friend = {
+  id: string; name: string; avatar?: string | null; photo?: string | null; photo_v?: number; cup?: string | null; public_id: string;
+  status: "pending" | "accepted"; incoming: boolean; presence: "online" | "game" | "offline"; game: string | null; hidden: boolean; showcase: string[];
+};
+export type RankRow = { id: string; name: string; wins: number; played: number; rate: number; rank: number };
+export type Notif = { id: number; kind: "friend_request" | "friend_accepted" | "invite"; read: boolean; at: string; code: string | null; from: string | null; from_name: string | null };
+export type Social = {
+  meId: string; friends: Friend[]; blocked: { id: string; name: string }[]; notifications: Notif[];
+  me: { hidden: boolean; showcase: string[] } | null; ranking: { permanent: RankRow[]; monthly: RankRow[] };
+};

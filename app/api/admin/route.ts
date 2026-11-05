@@ -4,7 +4,7 @@
 //  Toute écriture est enregistrée dans le journal d'audit.
 // =============================================================
 import { AdminError, requireAdmin } from "@/lib/admin";
-import { srv, srv2, srv3, srv5 } from "@/lib/srv";
+import { srv, srv2, srv3, srv5, srv6 } from "@/lib/srv";
 import { accountOf } from "@/lib/account";
 import { EconomyError, levelOf } from "@/lib/economy";
 import { catalogOf, ItemType } from "@/lib/progression";
@@ -129,6 +129,15 @@ async function run(op: string, b: Record<string, unknown>, actor: string) {
 
     case "audit":
       return srv("audit_list");
+
+    // ---------- signalements des joueurs ----------
+    case "reports":
+      return srv6("reports_list");
+    case "report_handled": {
+      await srv6("report_handled", { id: Number(b.id) });
+      await srv3("audit_add", { actor, action: "report.handled", target: String(b.id), detail: null });
+      return { ok: true };
+    }
 
     // ---------- économie ----------
     case "econ_stats": {
