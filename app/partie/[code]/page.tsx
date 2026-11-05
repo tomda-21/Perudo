@@ -63,7 +63,12 @@ export default function GamePage() {
     ro.current?.disconnect();
     if (!el) return;
     // la table garde une marge sur les côtés (bulles, pseudos) et ne devient jamais démesurée
-    const fit = () => { const r = el.getBoundingClientRect(); setSceneScale(Math.max(0.15, Math.min((r.width * 0.94) / LAND.W, r.height / LAND.H, 1.6))); };
+    const fit = () => {
+      const r = el.getBoundingClientRect();
+      // téléphone en paysage : la scène passe sous la barre du haut (coins libres) ; on garde une petite marge en hauteur
+      const short = window.innerHeight <= 500;
+      setSceneScale(Math.max(0.15, Math.min((r.width * 0.94) / LAND.W, (r.height * (short ? 0.9 : 1)) / LAND.H, 1.6)));
+    };
     ro.current = new ResizeObserver(fit); ro.current.observe(el); fit();
   }, []);
   const { maps: MAPS, phrases: PHRASES, reactions: REACTIONS, victories: VICTORIES, settings: game } = useContent();

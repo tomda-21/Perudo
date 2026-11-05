@@ -1609,11 +1609,23 @@ input[type="number"] { max-width: 160px; }
 
 .gv2 .st-seat.me .st-turn { display: none; } /* le tour et le temps sont déjà dans la barre */
 @media (max-height: 500px) {
-  .gv2 { --b: 36px; }
-  .bar2 { padding: 2px 8px 6px; }
-  .bar2-row { gap: 7px; }
-  .bar2-act { width: calc(var(--b) * 2.45); font-size: 13.5px; padding-left: calc(var(--b) * .6); }
-  .bar2-mine { padding: 0 6px; }
-  .bar2-status { font-size: 11px; min-height: 1.2em; }
+  /* téléphone en paysage : barre de commandes compacte (une seule ligne), la place gagnée va à la table */
+  .gv2 { --b: clamp(30px, calc((100vw - 120px) / 17.4), 38px); }
+  .bar2-qty { padding: 1px 3px; border-width: 1.5px; }
+  .gv2-scene { grid-row: 1 / 3; grid-column: 1; } .gv2-top, .gv2-bottom { grid-column: 1; }              /* la scène remonte sous la barre du haut : ses coins restent libres */
+  .gv2-top { pointer-events: none; } .gv2-top > * { pointer-events: auto; }
+  .gv2-bottom { padding-bottom: max(3px, env(safe-area-inset-bottom)); }
+  .bar2 { position: relative; padding: 4px 8px; }
+  .bar2-row { gap: 7px; flex-wrap: nowrap; }
+  .bar2-act { width: calc(var(--b) * 2.45); font-size: calc(var(--b) * .36); padding-left: calc(var(--b) * .6); }
+  .bar2-mine { width: var(--b); padding: 0; }
+  .bar2-mine .bar2-lbl { display: none; }       /* l'œil suffit ; le libellé reste en aria-label */
+  .bar2-eye { font-size: calc(var(--b) * .55); }
+  /* tour + chrono : pastille posée sur le bord haut de la barre */
+  .bar2-status { position: absolute; left: 50%; top: 0; transform: translate(-50%, -62%); z-index: 2; white-space: nowrap; font-size: 11px; line-height: 1.35; min-height: 0;
+    padding: 1px 12px; border-radius: 99px; background: linear-gradient(180deg, #4a2a12, #20100a); border: 1.5px solid var(--gold); box-shadow: 0 2px 6px rgba(0,0,0,.45); }
+  .bar2-status:empty { display: none; }
+  .gv2 .st-seat { scale: 1.06; }
+  .gv2-strip { padding: 6px 12px; min-height: calc(var(--b) + 8px); }               /* fiches un peu plus présentes (en plus de la scène agrandie) */
   .gv2-info { padding: 3px 10px; }
 }

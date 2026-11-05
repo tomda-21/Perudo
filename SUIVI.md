@@ -64,3 +64,9 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
 - Paysage téléphone : l'accueil garde la scène (plus de colonne à défiler). Portrait : colonne, lien invité raccourci.
 - Vérifié au simulateur : 360×740, 390×844, 430×932, 667×375, 740×360, 844×390, 932×430, 1024×600, 1024×768, 1280×1024, 1366×768, 1920×1080, 2348×1284, 2560×1080, 3840×2160. Aucun bouton hors écran, pas de défilement horizontal. Tag de retour : `before-home-bg`.
 - Gobelin de l'accueil (05/11/2026) : il est désormais assis derrière une table de jeu du casino (`public/art/home/goblin-table.webp`, faite à partir de la table du Casino du Gobelin + ombre au sol + un dé sur le tapis). Sa main repose sur le rebord, le bas du corps est caché. Couches : fond → gobelin → table → boutons. Le gobelin et la table bougent ensemble (même repère), sur ordinateur comme en colonne téléphone. Restes de l'ancien fond autour du gobelin (taches roses derrière les oreilles, planche à droite) effacés de `goblin.webp`.
+
+### Partie V2 — proportions en paysage téléphone (06/11/2026)
+- Uniquement pour les écrans de 500 px de haut ou moins (téléphones en paysage) ; ordinateur et tablette inchangés.
+- Barre de commandes sur une seule ligne : 75 → 54 px à 844×390 (−28 %). L'œil remplace le libellé « Cacher mes dés », le tour + chrono deviennent une pastille sur le bord haut de la barre. Toutes les commandes restent (œil, − / +, 6 faces, Enchérir, Dudo !, Exact !).
+- Place récupérée : la scène passe aussi sous la barre du haut (ses coins restent libres). Table +12 % à 844×390, fiches des joueurs +20 %.
+- Vérifié au simulateur : 667×375, 740×360, 844×390, 915×412, 932×430, 1024×500, avec 2 à 6 joueurs, plus la révélation et la salle d'attente. Aucun chevauchement entre joueurs, avec la barre du haut ou celle du bas, et aucun bouton hors écran.
