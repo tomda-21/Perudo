@@ -13,7 +13,7 @@ import Cup from "./Cup";
 import type { PlayerView, PublicPlayer } from "@/lib/rules";
 import { useContent } from "@/lib/content-client";
 import { assetUrl } from "@/lib/content";
-import { gameBg, gameTable } from "@/lib/catalog";
+import { gameBg, gameBg3, gameTable } from "@/lib/catalog";
 
 export type SeatFx = { kind: "sound" | "phrase" | "reaction"; id: string; key: number };
 export const G = "/art/game/";
@@ -82,6 +82,7 @@ type StageProps = {
   view: PlayerView; myId: string; geo: Geo; present: Set<string> | null; shaking: boolean; peek: boolean;
   fx: Record<string, SeatFx>; onCupClick: () => void; children?: ReactNode; withBackground: boolean;
   skew?: number; // décalage horloge serveur − horloge locale (ms)
+  showMine?: boolean; // V2 : mes vrais dés (contenu de mon gobelet) affichés sur ma plaque
 };
 
 /** Secondes restantes avant l'échéance fixée par le serveur (se met à jour toute seule). */
@@ -98,7 +99,7 @@ export function Countdown({ deadline, skew = 0 }: { deadline?: number | null; sk
 }
 
 /** Décor + table + joueurs, dans les coordonnées de la scène. */
-export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick, children, withBackground, skew = 0 }: StageProps) {
+export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick, children, withBackground, skew = 0, showMine = false }: StageProps) {
   const { maps, sounds: SOUNDS, phrases: PHRASES, reactions: REACTIONS, frames: FRAMES } = useContent();
   const map = maps.find((m) => m.id === view.map);
   const scene = map?.scene ?? view.map ?? "casino";
@@ -132,7 +133,8 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
         const frame = p.frame ? FRAMES.find((x) => x.id === p.frame)?.style ?? p.frame : null;
         // vers le centre de la table (pour poser le gobelet et les dés révélés)
         const dx = geo.cx - pt.x, dy = geo.cy + 60 - pt.y, len = Math.hypot(dx, dy) || 1;
-        const toward = isMe ? { x: -geo.av * 0.9, y: -geo.av * 0.15 } : { x: (dx / len) * geo.av * 1.05, y: (dy / len) * geo.av * 0.95 };
+        // V2 : mon gobelet est posé sur la table, juste au-dessus de mon pseudo
+        const toward = isMe ? (geo === LAND ? { x: geo.av * 1.12, y: -geo.av * 0.72 } : { x: -geo.av * 0.9, y: -geo.av * 0.15 }) : { x: (dx / len) * geo.av * 1.05, y: (dy / len) * geo.av * 0.95 };
         const lastBid = view.phase === "bidding" ? [...view.history].reverse().find((h) => h.playerId === p.id) : undefined;
         return (
           <div key={p.id}
@@ -153,7 +155,7 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
                   key={`${view.round}-${shaking}`} />
               </div>
             )}
-            {hand && isMe && (
+            {hand && isMe && !land && (
               <div className={`st-hand ${mine ? "mine" : ""}`} onClick={mine ? onCupClick : undefined} title={mine ? "Masquer mes dés" : undefined} style={{ transform: `translate(${toward.x * 1.15 - (mine ? geo.av * 0.45 : 0)}px, ${toward.y}px)` }}>
                 {hand.map((d, k) => <DieImg key={k} value={d} size={desktop ? 44 : 38} hl={showReveal && counts(d)} dim={showReveal && !counts(d)} />)}
               </div>
@@ -185,6 +187,20 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
               </div>
               {hand && !isMe ? (
                 <div className="st-hand-in">{hand.map((d, k) => <DieImg key={k} value={d} size={desktop ? 34 : 30} hl={counts(d)} dim={!counts(d)} />)}</div>
+              ) : isMe && land && !out && !p.left && view.phase !== "lobby" ? (
+                // ma plaque = l'intérieur de mon gobelet : mes vraies faces (masquables), dés perdus grisés
+                <div className="st-dice st-mine" onClick={view.phase === "bidding" ? onCupClick : undefined}
+                  title={view.phase === "bidding" ? (showMine ? "Masquer mes dés" : "Voir mes dés") : undefined}>
+                  <span className="st-slots">
+                    {Array.from({ length: Math.max(view.config?.startDice ?? 5, p.diceCount) }, (_, k) => {
+                      const faces = showReveal ? r!.hands[p.id] : view.me?.hand;
+                      const v = faces?.[k];
+                      if (k >= p.diceCount) return <img key={k} src={`${G}die5.webp`} alt="" className="lost" />;
+                      return (showMine || showReveal) && !shaking && v ? <DieImg key={k} value={v} size={34} hl={showReveal && counts(v)} dim={showReveal && !counts(v)} />
+                        : <span key={k} className="st-die-hidden" aria-label="dé caché" />;
+                    })}
+                  </span>
+                </div>
               ) : view.phase !== "lobby" && (
                 <div className="st-dice">
                   {p.left ? "a quitté" : out ? "spectateur" : (
@@ -209,6 +225,7 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
   const land = geo === LAND;
   if (land) return (
     <>
+      {withBackground && <img className="st-map-l" src={custom ?? gameBg3(scene)} alt="" draggable={false} />}
       {withBackground && <img className="st-table-l" src={gameTable(scene)} alt="" draggable={false} />}
       <Center view={view} geo={geo} />
       {seatsOf()}

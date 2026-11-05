@@ -17,7 +17,7 @@ import { InviteFriends, useSocial } from "@/components/Friends";
 import { Modal } from "@/components/Panel";
 import { SettingsModal } from "@/components/Menus";
 import { Lobby } from "@/components/GameControls";
-import { gameBg2 } from "@/lib/catalog";
+import { gameBg3 } from "@/lib/catalog";
 import { assetUrl } from "@/lib/content";
 import { api, getSession, lastName, Progress, realtime, rememberName, saveSession, Session } from "@/lib/client";
 import { sounds, unlockAudio } from "@/lib/sound";
@@ -63,7 +63,7 @@ export default function GamePage() {
     ro.current?.disconnect();
     if (!el) return;
     // la table garde une marge sur les côtés (bulles, pseudos) et ne devient jamais démesurée
-    const fit = () => { const r = el.getBoundingClientRect(); setSceneScale(Math.max(0.15, Math.min((r.width * 0.94) / LAND.W, r.height / LAND.H, 1.2))); };
+    const fit = () => { const r = el.getBoundingClientRect(); setSceneScale(Math.max(0.15, Math.min((r.width * 0.94) / LAND.W, r.height / LAND.H, 1.6))); };
     ro.current = new ResizeObserver(fit); ro.current.observe(el); fit();
   }, []);
   const { maps: MAPS, phrases: PHRASES, reactions: REACTIONS, victories: VICTORIES, settings: game } = useContent();
@@ -265,11 +265,11 @@ export default function GamePage() {
   const barProps = { view, myTurn: myTurn && !shaking, busy, act, peek, onPeek: () => setPeek((x) => !x), shaking, waitingFor: name(view.turnId), imOut };
   const introMap = intro ? MAPS.find((m) => m.id === intro) : null;
   const calm = settings.reduceMotion;
-  const bg = (mapItem?.image && assetUrl(mapItem.image)) || gameBg2(scene);
+  const bg = (mapItem?.image && assetUrl(mapItem.image)) || gameBg3(scene);
 
   // la scène (table + joueurs) occupe tout l'espace entre le haut et la barre ; les commandes restent en HTML
   const stage = (
-    <Stage view={view} myId={me.id} geo={LAND} present={present} shaking={shaking} peek={false} fx={fx} skew={skew.current}
+    <Stage view={view} myId={me.id} geo={LAND} present={present} shaking={shaking} peek={false} showMine={peek} fx={fx} skew={skew.current}
       onCupClick={() => setPeek((x) => !x)} withBackground />
   );
 

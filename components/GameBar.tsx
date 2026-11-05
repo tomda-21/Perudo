@@ -175,7 +175,6 @@ export function Bar2(props: BarProps & { remain?: React.ReactNode }) {
   const live = myTurn && !busy;
   const exactOn = view.config?.exactEnabled !== false;
   const exactLive = !busy && !shaking && !!view.canExact; // hors de son tour aussi (le serveur tranche)
-  const hand = view.me?.hand ?? [];
   return (
     <div className={`bar2 ${myTurn ? "my" : "wait"} ${imOut ? "out" : ""}`}>
       <div className="bar2-status" aria-live="polite">
@@ -184,12 +183,11 @@ export function Bar2(props: BarProps & { remain?: React.ReactNode }) {
       </div>
       <div className="bar2-row">
         {!imOut && (
+          // mes dés s'affichent sur ma plaque (dans mon gobelet) ; ici, seulement les montrer / cacher
           <button className={`bar2-mine ${peek ? "open" : ""}`} onClick={onPeek} disabled={shaking}
             aria-label={peek ? "Masquer mes dés" : "Voir mes dés"} title={peek ? "Masquer mes dés" : "Voir mes dés"}>
-            <span className="bar2-lbl">{peek ? "Mes dés" : "👁 Voir"}</span>
-            <span className="bar2-dice">
-              {hand.map((d, i) => peek && !shaking ? <DieImg key={i} value={d} size={30} /> : <span key={i} className="bar2-hid" />)}
-            </span>
+            <span className="bar2-eye">{peek ? "🙈" : "👁"}</span>
+            <span className="bar2-lbl">{peek ? "Cacher mes dés" : "Voir mes dés"}</span>
           </button>
         )}
         <div className="bar2-qty" role="group" aria-label="Quantité">
