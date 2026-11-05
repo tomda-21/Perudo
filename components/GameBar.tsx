@@ -62,6 +62,9 @@ export function DesktopBar(props: BarProps) {
   const p = useBidPicker(view);
   const live = myTurn && !busy;
   const exactOn = view.config?.exactEnabled !== false;
+  // Exact : même hors de son tour, tant que l'annonce suivante n'est pas faite (le serveur tranche)
+  const exactLive = !busy && !shaking && !!view.canExact;
+  const exact = () => act({ type: "exact", expect: view.history.length });
   return (
     <div className={`gbar ${myTurn ? "my" : "wait"}`}>
       <img className="gbar-bg" src={`${G}bar.webp`} alt="" draggable={false} style={abs(122, 641, 1490, 321)} />
@@ -108,7 +111,7 @@ export function DesktopBar(props: BarProps) {
         <span className="glbl act">Dudo !</span>
       </button>
       {exactOn && (
-        <button className="gimg-btn act" style={abs(1086, 809, 386, 103)} disabled={!live || !view.bid} onClick={() => act({ type: "exact" })}>
+        <button className="gimg-btn act" style={abs(1086, 809, 386, 103)} disabled={!exactLive} onClick={exact}>
           <img src={`${G}exact.webp`} alt="" draggable={false} />
           <span className="glbl act">Exact !</span>
         </button>
@@ -124,6 +127,9 @@ export function MobileBar(props: BarProps) {
   const p = useBidPicker(view);
   const live = myTurn && !busy;
   const exactOn = view.config?.exactEnabled !== false;
+  // Exact : même hors de son tour, tant que l'annonce suivante n'est pas faite (le serveur tranche)
+  const exactLive = !busy && !shaking && !!view.canExact;
+  const exact = () => act({ type: "exact", expect: view.history.length });
   return (
     <div className={`mbar ${myTurn ? "my" : "wait"}`}>
       <div className="mbar-ribbon">
@@ -152,7 +158,7 @@ export function MobileBar(props: BarProps) {
       <div className="mactions">
         <button className="mact bid" disabled={!live || !!p.err} onClick={() => act({ type: "bid", qty: p.qty, face: p.face })}><span>Enchérir</span></button>
         <button className="mact dudo" disabled={!live || !view.bid} onClick={() => act({ type: "liar" })}><span>Dudo !</span></button>
-        {exactOn && <button className="mact exact" disabled={!live || !view.bid} onClick={() => act({ type: "exact" })}><span>Exact !</span></button>}
+        {exactOn && <button className="mact exact" disabled={!exactLive} onClick={exact}><span>Exact !</span></button>}
       </div>
       {myTurn && p.err && <p className="mbar-err">{p.err}</p>}
     </div>

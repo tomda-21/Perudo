@@ -1118,6 +1118,13 @@ input[type="number"] { max-width: 160px; }
 .st-level { font-size: 18px; padding: 0 7px; border-radius: 7px; background: var(--gold); color: #3a1e04; }
 .st-dice { display: flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--font-title); font-size: 25px; color: #f4e2c0; }
 .st-dice img { width: 28px; height: 28px; }
+.st-slots { display: inline-flex; gap: 3px; }
+.st-slots img { width: 24px; height: 24px; }
+.st-slots img.lost { filter: grayscale(1) brightness(.45); opacity: .55; }
+.cdown { font-variant-numeric: tabular-nums; color: #fff3c4; margin-left: 4px; }
+.cdown.urgent { color: #ff6a4d; animation: cdpulse .5s ease-in-out infinite alternate; }
+@keyframes cdpulse { to { opacity: .55; } }
+.reveal-auto { font-family: var(--font-title); font-size: 22px; color: #f4e2c0; text-shadow: 0 2px 4px #000; }
 .st-turn { font-size: 17px; font-weight: 900; color: #ffd45e; } .st-turn.off { color: #bbb; }
 .st-seat-cup { position: absolute; left: 50%; top: 50%; z-index: -1; pointer-events: none; }
 .st-seat-cup > * { pointer-events: auto; translate: -50% -40%; scale: 1.55; transform-origin: 50% 100%; }

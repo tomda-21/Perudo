@@ -15,6 +15,7 @@ export type BotView = {
   bid: Bid | null;
   totalDice: number;
   palifico: boolean;
+  canExact?: boolean; // Exact permis ? (pas sa propre annonce, pas en Palifico, pas à 2 joueurs)
 };
 
 export type BotDecision =
@@ -108,7 +109,7 @@ export function decide(v: BotView, rand: () => number = Math.random): BotDecisio
   const pEx = probExact(v, v.bid);
 
   // « Exact ! » quand c'est vraiment plausible (et pas à chaque fois)
-  if (pEx > 0.33 && rand() < 0.4) return { type: "exact" };
+  if (v.canExact !== false && pEx > 0.33 && rand() < 0.4) return { type: "exact" };
 
   // « Menteur ! » si l'annonce semble fausse et qu'on n'a pas mieux
   const bestP = best?.p ?? 0;

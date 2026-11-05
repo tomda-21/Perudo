@@ -12,7 +12,9 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
 - Tests : `tests/*.test.ts` (66, `tsx --test`) + simulateur navigateur hors dépôt.
 
 ## Plan (ordre de priorité)
-- [ ] P1 Moteur : Palifico (valeur verrouillée, ouverture Pax), Exact (restrictions, hors tour), 2–6 joueurs, chrono 30 s serveur, relais bot à 60 s, dés perdus.
+- [x] P1 Moteur : Palifico (valeur verrouillée, ouverture Pax), Exact (restrictions, hors tour), 2–6 joueurs, chrono 30 s serveur, relais bot à 60 s, dés perdus.
+  - Horloge : `deadline` dans l'état ; `tick()` appelé par GET et chaque action (coup auto = surenchère minimale, sinon Dudo ; révélation 6 s puis manche auto). Présence : `seen` (écrit ≤ 1×/20 s) ; absent > 60 s → `botStep` joue pour lui.
+  - Reste : un joueur de retour reprend la main tout de suite (pas « au tour suivant »).
 - [ ] P2 Comptes : e-mail + mot de passe (Supabase Auth), vérif. e-mail, mot de passe oublié, suppression ; invités à blanc ; pseudo 2×/mois ; identifiant public ; admin lié au compte.
 - [ ] P3 Interface : dés perso permanents, mobile paysage, zooms, Palifico/élimination, gobelin commentateur, retrait anti-spam, volumes séparés, couper un joueur.
 - [ ] P4 Maps : 8 maps (3 nouvelles), décors HD manquants (fournis par Tom).

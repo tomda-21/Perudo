@@ -34,8 +34,9 @@ test("minimum proposé par l'interface = minimum accepté par le serveur", () =>
     for (let pq = 1; pq <= 8; pq++)
       for (let pf = 1; pf <= 6; pf++)
         for (let f = 1; f <= 6; f++) {
-          const m = minQtyFor({ qty: pq, face: pf }, f, pal)!;
           const prev = { qty: pq, face: pf };
+          const m = minQtyFor(prev, f, pal);
+          if (m === null) { for (let q = 1; q <= 40; q++) assert.notEqual(checkBid(prev, { qty: q, face: f }, pal, 40), null); continue; }
           assert.equal(checkBid(prev, { qty: m, face: f }, pal, 40), null, `min ${m}×${f} après ${pq}×${pf} (palifico ${pal})`);
           if (m > 1) assert.notEqual(checkBid(prev, { qty: m - 1, face: f }, pal, 40), null, `${m - 1}×${f} devrait être refusé`);
         }
@@ -43,10 +44,15 @@ test("minimum proposé par l'interface = minimum accepté par le serveur", () =>
   assert.equal(minQtyFor({ qty: 2, face: 1 }, 6, false), 5);
 });
 
-test("palifico inchangé : les pax sont une valeur normale (pas de conversion)", () => {
-  assert.ok(!ok([4, 2], [2, 1], true), "pas de division par deux en palifico");
-  assert.ok(ok([2, 1], [2, 3], true), "en palifico, 2 pax → 2 dés de 3 (valeur plus haute)");
-  assert.ok(!ok([2, 1], [1, 6], true));
+test("palifico : valeur verrouillée, seule la quantité monte ; ouverture sur les pax permise", () => {
+  assert.ok(!ok([4, 2], [2, 1], true), "pas de passage aux pax en palifico");
+  assert.ok(!ok([2, 1], [2, 3], true), "valeur verrouillée");
+  assert.ok(!ok([2, 3], [3, 4], true), "valeur verrouillée même en montant la quantité");
+  assert.ok(ok([2, 3], [3, 3], true));
+  assert.ok(!ok([2, 3], [2, 3], true));
+  assert.ok(ok([2, 1], [3, 1], true), "pax verrouillés : 3 pax");
+  assert.equal(checkBid(null, { qty: 1, face: 1 }, true, 10), null, "ouverture sur les pax en palifico");
+  assert.notEqual(checkBid(null, { qty: 1, face: 1 }, false, 10), null, "interdit hors palifico");
 });
 
 test("serveur : la séquence 4×2 → 2 pax → 5×3 passe dans une vraie partie", () => {

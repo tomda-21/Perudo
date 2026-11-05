@@ -1,7 +1,7 @@
-// Toutes les actions de jeu : lancer, annoncer, menteur, exact, manche suivante,
+// Toutes les actions de jeu : lancer, annoncer, dudo, exact (même hors de son tour),
 // rejouer, bots, map, quitter. Le serveur vérifie tout.
 import {
-  addBot, botStep, callExact, callLiar, leaveGame, nextRound, placeBid, removeBot, restart,
+  addBot, botStep, callExact, callLiar, leaveGame, placeBid, removeBot, restart, tick, touch,
   ResultRow, RuleError, startGame, takeResults, viewFor,
 } from "@/lib/rules";
 import { mutate } from "@/lib/store";
@@ -24,6 +24,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       const me = playerFromToken(s, token);
       if (!me) throw new RuleError("Tu ne fais pas partie de cette partie");
       meId = me.id;
+      tick(s); // temps écoulé ? le coup automatique passe avant l'action
+      touch(s, me.id);
       // un joueur parti ou éliminé ne peut plus jouer (mais peut quitter / regarder)
       const playing = ["bid", "liar", "exact"].includes(body.type);
       if (playing && (me.left || me.diceCount === 0)) throw new RuleError("Tu es éliminé : tu regardes la partie");
@@ -31,8 +33,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
         case "start": startGame(s, me.id, pool); break;
         case "bid": placeBid(s, me.id, { qty: Number(body.qty), face: Number(body.face) }); break;
         case "liar": callLiar(s, me.id); break;
-        case "exact": callExact(s, me.id); break;
-        case "next": nextRound(s, me.id); break;
+        case "exact": callExact(s, me.id, body.expect === undefined ? undefined : Number(body.expect)); break;
         case "restart": restart(s, me.id, pool); break;
         case "addBot": addBot(s, me.id); break;
         case "removeBot": removeBot(s, me.id, String(body.botId)); break;

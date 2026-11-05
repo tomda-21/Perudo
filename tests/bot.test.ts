@@ -26,19 +26,19 @@ test("le bot crie menteur sur une annonce absurde", () => {
   assert.equal(d.type, "liar");
 });
 
-test("lobby : ajouter / retirer des bots (hôte seulement, 8 max)", () => {
+test("lobby : ajouter / retirer des bots (hôte seulement, 6 max)", () => {
   const s = newGame("T");
   addPlayer(s, "h", "Tom", "t");
   addPlayer(s, "a", "Ami", "t2");
   assert.throws(() => addBot(s, "a"), /hôte/);
-  for (let i = 0; i < 6; i++) addBot(s, "h");
-  assert.equal(s.players.length, 8);
+  for (let i = 0; i < 4; i++) addBot(s, "h");
+  assert.equal(s.players.length, 6);
   assert.throws(() => addBot(s, "h"), /pleine/);
   const bot = s.players.find((p) => p.isBot)!;
   removeBot(s, "h", bot.id);
-  assert.equal(s.players.length, 7);
-  assert.deepEqual(s.players.map((p) => p.seat), [0, 1, 2, 3, 4, 5, 6]);
-  assert.equal(new Set(s.players.map((p) => p.name)).size, 7); // noms uniques
+  assert.equal(s.players.length, 5);
+  assert.deepEqual(s.players.map((p) => p.seat), [0, 1, 2, 3, 4]);
+  assert.equal(new Set(s.players.map((p) => p.name)).size, 5); // noms uniques
 });
 
 test("un bot ne joue pas deux fois le même coup", () => {
@@ -68,10 +68,10 @@ function fullBotGame(nBots: number) {
   return { s, steps };
 }
 
-test("100 parties 100 % bots se terminent sans erreur (2 à 8 joueurs)", () => {
+test("100 parties 100 % bots se terminent sans erreur (2 à 6 joueurs)", () => {
   let palificos = 0, exacts = 0;
   for (let g = 0; g < 100; g++) {
-    const { s } = fullBotGame(1 + (g % 7));
+    const { s } = fullBotGame(1 + (g % 5));
     assert.ok(s.winnerId);
     assert.equal(s.players.filter((p) => p.diceCount > 0).length, 1);
     palificos += s.players.filter((p) => p.palificoUsed).length;

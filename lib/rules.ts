@@ -16,9 +16,16 @@ import { BOT_AVATARS, MAPS } from "./catalog";
 
 export const MAX_DICE = 5;
 export const MIN_PLAYERS = 2;
-export const MAX_PLAYERS = 8;
+export const MAX_PLAYERS = 6;
+/** Temps par joueur (serveur) et délais des transitions automatiques. */
+export const TURN_MS = 30_000;
+export const START_GRACE_MS = 2_000; // secouage des gobelets
+export const FIRST_GRACE_MS = 2_500; // + présentation de la map (1re manche)
+export const REVEAL_MS = 6_000; // révélation, effets, puis manche suivante automatique
+export const AWAY_MS = 60_000; // absent depuis 60 s → un bot prend le relais
+export const SEEN_EVERY_MS = 20_000;
 
-import { Bid, checkBid, countMatching } from "./bids";
+import { Bid, checkBid, countMatching, minimalRaise } from "./bids";
 export type { Bid } from "./bids";
 export { checkBid, countMatching } from "./bids";
 export type Phase = "lobby" | "bidding" | "reveal" | "finished";
@@ -37,6 +44,7 @@ export type Player = {
   avatar?: string | null; // avatar par défaut, ou "photo:<profil>:<version>"
   cup?: string; // gobelet équipé (purement cosmétique)
   left?: boolean; // a quitté la partie
+  seen?: number; // dernière présence (ms, serveur)
   st?: PlayerStats; // exploits de la partie en cours
   frame?: string | null; title?: string | null; victory?: string | null; level?: number | null; fxOwned?: string[] | null;
 };
@@ -68,7 +76,8 @@ export type GameState = {
   turnId: string | null;
   bid: Bid | null;
   bidderId: string | null;
-  history: { playerId: string; bid: Bid }[];
+  history: { playerId: string; bid: Bid; auto?: boolean }[];
+  deadline?: number | null; // fin du tour / de la révélation (ms, horloge serveur)
   reveal: Reveal | null;
   nextStarterId: string | null;
   winnerId: string | null;
@@ -172,6 +181,7 @@ export function addPlayer(s: GameState, id: string, name: string, token: string,
     palificoUsed: false,
     isHost: s.players.length === 0,
     isBot: false,
+    seen: Date.now(),
     profileId: extra.profileId ?? null,
     avatar: extra.avatar ?? null,
     cup: extra.cup ?? "classic",
@@ -200,9 +210,11 @@ export function leaveGame(s: GameState, playerId: string) {
       if (alivePlayers.length <= 1) {
         s.phase = "finished";
         s.turnId = null;
+        s.deadline = null;
         s.winnerId = alivePlayers[0]?.id ?? null;
       } else if (s.phase === "bidding" && wasTurn) {
         s.turnId = nextAliveAfter(s, playerId);
+        s.deadline = Date.now() + TURN_MS;
       } else if (s.phase === "reveal" && s.nextStarterId === playerId) {
         s.nextStarterId = nextAliveAfter(s, playerId);
       }
@@ -217,7 +229,7 @@ export function leaveGame(s: GameState, playerId: string) {
   // plus aucun humain : on arrête tout (et rien n'est compté)
   if (humansLeft().length === 0) {
     s.abandoned = true;
-    if (s.phase !== "lobby") { s.phase = "finished"; s.turnId = null; }
+    if (s.phase !== "lobby") { s.phase = "finished"; s.turnId = null; s.deadline = null; }
   }
 }
 
@@ -301,21 +313,70 @@ export function removeBot(s: GameState, byPlayerId: string, botId: string) {
 export const turnKey = (s: GameState) => `${s.round}:${s.history.length}:${s.turnId ?? "-"}`;
 
 /** Fait jouer le bot dont c'est le tour. */
-export function botStep(s: GameState, expectedKey: string) {
+/** Joueur absent depuis plus de 60 s : un bot joue à sa place (il garde ses dés). */
+export const isAway = (p: Player, now = Date.now()) =>
+  !p.isBot && !p.left && p.seen !== undefined && now - p.seen > AWAY_MS;
+
+/** Marque un joueur présent (écrit au plus toutes les 20 s). Renvoie true si l'état change. */
+export function touch(s: GameState, playerId: string, now = Date.now()) {
+  const p = s.players.find((x) => x.id === playerId);
+  if (!p || (p.seen !== undefined && now - p.seen < SEEN_EVERY_MS)) return false;
+  p.seen = now;
+  return true;
+}
+
+/** Fait jouer le bot (ou le relais d'un joueur absent) dont c'est le tour. */
+export function botStep(s: GameState, expectedKey: string, now = Date.now()) {
   if (s.phase !== "bidding") throw new RuleError("Ce n'est pas le moment");
   if (turnKey(s) !== expectedKey) throw new RuleError("Coup déjà joué");
   const bot = s.players.find((p) => p.id === s.turnId);
-  if (!bot || !bot.isBot) throw new RuleError("Ce n'est pas le tour d'un bot");
-  const d = decide({ hand: bot.hand, bid: s.bid, totalDice: totalDice(s), palifico: s.palifico });
+  if (!bot || !(bot.isBot || isAway(bot, now))) throw new RuleError("Ce n'est pas le tour d'un bot");
+  botPlay(s, bot);
+}
+
+function botPlay(s: GameState, bot: Player) {
+  const d = decide({ hand: bot.hand, bid: s.bid, totalDice: totalDice(s), palifico: s.palifico, canExact: canExact(s, bot.id) });
   try {
     if (d.type === "liar") return callLiar(s, bot.id);
-    if (d.type === "exact") return cfg(s).exactEnabled ? callExact(s, bot.id) : callLiar(s, bot.id);
+    if (d.type === "exact") return canExact(s, bot.id) ? callExact(s, bot.id) : callLiar(s, bot.id);
     return placeBid(s, bot.id, { qty: d.qty, face: d.face });
   } catch {
     // filet de sécurité : si jamais l'annonce choisie n'est pas valable
-    if (s.bid) return callLiar(s, bot.id);
-    return placeBid(s, bot.id, { qty: 1, face: 2 });
+    autoPlay(s, bot);
   }
+}
+
+/** Coup automatique quand le temps est écoulé : plus petite surenchère légale, sinon Dudo. */
+function autoPlay(s: GameState, p: Player) {
+  if (!s.bid) {
+    // ouverture : 1 dé de la valeur la plus présente dans sa main (pas de pax hors Palifico)
+    const counts = [0, 0, 0, 0, 0, 0, 0];
+    for (const d of p.hand) if (s.palifico || d !== 1) counts[d]++;
+    let face = s.palifico ? (p.hand[0] ?? 2) : 2;
+    for (let f = 2; f <= 6; f++) if (counts[f] > counts[face]) face = f;
+    return placeBid(s, p.id, { qty: 1, face }, true);
+  }
+  const raise = minimalRaise(s.bid, s.palifico, totalDice(s));
+  if (raise) return placeBid(s, p.id, raise, true);
+  return callLiar(s, p.id);
+}
+
+/**
+ * Horloge serveur : appelée à chaque lecture / action.
+ * Tour expiré → coup automatique ; révélation terminée → manche suivante.
+ * Renvoie true si l'état a changé.
+ */
+export function tick(s: GameState, now = Date.now()): boolean {
+  if (s.phase === "bidding" && !s.deadline) { s.deadline = now + TURN_MS; return true; } // anciennes parties
+  if (!s.deadline || now < s.deadline) return false;
+  if (s.phase === "bidding" && s.turnId) {
+    const p = byId(s, s.turnId);
+    if (p.isBot || isAway(p, now)) botPlay(s, p);
+    else autoPlay(s, p);
+  } else if (s.phase === "reveal" && s.nextStarterId) {
+    startRound(s, s.nextStarterId);
+  } else s.deadline = null;
+  return true;
 }
 
 // ---------- déroulé d'une manche ----------
@@ -332,6 +393,7 @@ function startRound(s: GameState, starterId: string) {
   s.history = [];
   s.reveal = null;
   s.nextStarterId = null;
+  s.deadline = Date.now() + TURN_MS + (s.round === 1 ? START_GRACE_MS + FIRST_GRACE_MS : START_GRACE_MS);
 }
 
 export function startGame(s: GameState, byPlayerId: string, pool: MapPool = DEFAULT_POOL) {
@@ -350,17 +412,18 @@ function assertTurn(s: GameState, playerId: string) {
   if (s.turnId !== playerId) throw new RuleError("Ce n'est pas ton tour");
 }
 
-export function placeBid(s: GameState, playerId: string, bid: Bid) {
+export function placeBid(s: GameState, playerId: string, bid: Bid, auto = false) {
   assertTurn(s, playerId);
   const err = checkBid(s.bid, bid, s.palifico, totalDice(s));
   if (err) throw new RuleError(err);
   s.bid = { qty: bid.qty, face: bid.face };
   s.bidderId = playerId;
-  s.history.push({ playerId, bid: s.bid });
+  s.history.push(auto ? { playerId, bid: s.bid, auto: true } : { playerId, bid: s.bid });
   const me = byId(s, playerId);
   me.st ??= freshStats();
   me.st.bids = (me.st.bids ?? 0) + 1;
   s.turnId = nextAliveAfter(s, playerId);
+  s.deadline = Date.now() + TURN_MS;
 }
 
 function loseDie(s: GameState, playerId: string) {
@@ -385,9 +448,11 @@ function finishResolution(s: GameState, reveal: Reveal, starterCandidate: string
     s.phase = "finished";
     s.winnerId = left[0].id;
     s.palificoNext = false;
+    s.deadline = null;
     return;
   }
   s.phase = "reveal";
+  s.deadline = Date.now() + REVEAL_MS;
   const cand = byId(s, starterCandidate);
   s.nextStarterId = cand.diceCount > 0 ? cand.id : nextAliveAfter(s, cand.id);
 }
@@ -428,9 +493,29 @@ export function callLiar(s: GameState, playerId: string) {
   );
 }
 
-export function callExact(s: GameState, playerId: string) {
-  assertTurn(s, playerId);
-  if (!cfg(s).exactEnabled) throw new RuleError("« Exact » est désactivé dans ce salon");
+/** Raison pour laquelle ce joueur ne peut pas crier Exact (null = il peut). */
+export function exactBlock(s: GameState, playerId: string): string | null {
+  if (!cfg(s).exactEnabled) return "« Exact » est désactivé dans ce salon";
+  if (s.phase !== "bidding") return "Ce n'est pas le moment";
+  if (!s.bid || !s.bidderId) return "Personne n'a encore annoncé";
+  const p = s.players.find((x) => x.id === playerId);
+  if (!p || p.diceCount === 0 || p.left) return "Tu ne joues plus cette partie";
+  if (s.bidderId === playerId) return "Tu ne peux pas crier Exact sur ta propre annonce";
+  if (s.palifico) return "Pas d'Exact pendant un Palifico";
+  if (alive(s).length <= 2) return "Pas d'Exact quand il ne reste que 2 joueurs";
+  return null;
+}
+export const canExact = (s: GameState, playerId: string) => exactBlock(s, playerId) === null;
+
+/**
+ * Exact : n'importe quel joueur éligible peut le crier, même hors de son tour,
+ * tant que l'annonce suivante n'est pas validée (`expectBids` = nombre d'annonces vues).
+ */
+export function callExact(s: GameState, playerId: string, expectBids?: number) {
+  const block = exactBlock(s, playerId);
+  if (block) throw new RuleError(block);
+  if (expectBids !== undefined && expectBids !== s.history.length)
+    throw new RuleError("Trop tard : une nouvelle annonce vient d'être faite");
   if (!s.bid || !s.bidderId) throw new RuleError("Personne n'a encore annoncé");
   const hands = snapshotHands(s);
   const count = countMatching(Object.values(hands), s.bid.face, s.palifico);
@@ -486,6 +571,7 @@ export function restart(s: GameState, playerId: string, pool: MapPool = DEFAULT_
     x.palificoUsed = false;
     x.hand = [];
     x.st = freshStats();
+    x.seen ??= Date.now();
   }
   s.gameNo = (s.gameNo ?? 1) + 1;
   s.map = drawMap(pool, s.lastMap ?? s.map); // nouvelle partie = nouveau tirage
@@ -506,12 +592,18 @@ export type PlayerView = Omit<GameState, "players"> & {
   me: { id: string; hand: number[] } | null;
   totalDice: number;
   turnKey: string;
+  now: number; // horloge serveur (pour afficher le temps restant)
+  away: string[]; // joueurs absents remplacés par un bot
+  canExact: boolean; // puis-je crier Exact maintenant ?
 };
 
-export function viewFor(s: GameState, playerId: string | null): PlayerView {
+export function viewFor(s: GameState, playerId: string | null, now = Date.now()): PlayerView {
   const me = playerId ? s.players.find((p) => p.id === playerId) ?? null : null;
   return {
     ...s,
+    now,
+    away: s.players.filter((p) => isAway(p, now)).map((p) => p.id),
+    canExact: me ? canExact(s, me.id) : false,
     players: s.players.map(({ token: _t, hand: _h, ...pub }) => pub),
     me: me ? { id: me.id, hand: s.phase === "bidding" ? me.hand : [] } : null,
     totalDice: totalDice(s),

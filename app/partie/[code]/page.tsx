@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Scene from "@/components/Scene";
-import { CallFx, DESKTOP, DieImg, G, MapIntro, MOBILE, Stage, useLayout } from "@/components/GameStage";
+import { CallFx, Countdown, DESKTOP, DieImg, G, MapIntro, MOBILE, Stage, useLayout } from "@/components/GameStage";
 import { DesktopBar, MobileBar } from "@/components/GameBar";
 import Victory from "@/components/Victory";
 import Avatar from "@/components/Avatar";
@@ -165,8 +165,20 @@ export default function GamePage() {
     prev.current = now;
   }, [view, myId]);
 
-  // ---------- tours des bots ----------
-  const botTurn = view?.phase === "bidding" && view.players.find((p) => p.id === view.turnId)?.isBot;
+  // ---------- horloge serveur : temps par joueur et manche suivante automatique ----------
+  const skew = useRef(0);
+  useEffect(() => { if (view?.now) skew.current = view.now - Date.now(); }, [view]);
+  const deadline = view?.deadline ?? null;
+  useEffect(() => {
+    if (!deadline) return;
+    // à l'échéance on relit l'état : le serveur joue le coup automatique / lance la manche
+    const t = setTimeout(refresh, Math.max(300, deadline - (Date.now() + skew.current) + 400));
+    return () => clearTimeout(t);
+  }, [deadline, refresh]);
+
+  // ---------- tours des bots (et relais des joueurs absents) ----------
+  const botTurn = view?.phase === "bidding" &&
+    (view.players.find((p) => p.id === view.turnId)?.isBot || view.away?.includes(view.turnId ?? ""));
   const botKey = botTurn ? view!.turnKey : null;
   useEffect(() => {
     if (!botKey || !session) return;
@@ -231,7 +243,7 @@ export default function GamePage() {
   const calm = settings.reduceMotion;
 
   const stage = (
-    <Stage view={view} myId={me.id} geo={geo} present={present} shaking={shaking} peek={peek} fx={fx}
+    <Stage view={view} myId={me.id} geo={geo} present={present} shaking={shaking} peek={peek} fx={fx} skew={skew.current}
       onCupClick={() => setPeek((x) => !x)} withBackground>
       {!layout.mobile && view.phase === "bidding" && <DesktopBar {...barProps} />}
       {!layout.mobile && view.phase !== "bidding" && (
@@ -247,10 +259,7 @@ export default function GamePage() {
     ? <Lobby view={view} isHost={me.isHost} busy={busy} copied={copied} onShare={share} act={act} />
     : view.phase === "reveal"
       ? <div className="reveal-actions">
-          <button className="gimg-btn act wide" disabled={busy} onClick={() => act({ type: "next" })}>
-            <img src={`${G}bid.webp`} alt="" draggable={false} />
-            <span className="glbl act">Manche suivante</span>
-          </button>
+          <span className="reveal-auto">Manche suivante dans <Countdown deadline={view.deadline} skew={skew.current} /></span>
           <span className="reveal-next">{name(view.nextStarterId)} commence</span>
         </div>
       : null;

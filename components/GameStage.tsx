@@ -79,10 +79,24 @@ const FX_EMOJI: Record<string, string[]> = {
 type StageProps = {
   view: PlayerView; myId: string; geo: Geo; present: Set<string> | null; shaking: boolean; peek: boolean;
   fx: Record<string, SeatFx>; onCupClick: () => void; children?: ReactNode; withBackground: boolean;
+  skew?: number; // décalage horloge serveur − horloge locale (ms)
 };
 
+/** Secondes restantes avant l'échéance fixée par le serveur (se met à jour toute seule). */
+export function Countdown({ deadline, skew = 0 }: { deadline?: number | null; skew?: number }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!deadline) return;
+    const t = setInterval(() => tick((x) => x + 1), 250);
+    return () => clearInterval(t);
+  }, [deadline]);
+  if (!deadline) return null;
+  const sec = Math.max(0, Math.ceil((deadline - (Date.now() + skew)) / 1000));
+  return <span className={`cdown ${sec <= 5 ? "urgent" : ""}`}>{sec} s</span>;
+}
+
 /** Décor + table + joueurs, dans les coordonnées de la scène. */
-export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick, children, withBackground }: StageProps) {
+export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick, children, withBackground, skew = 0 }: StageProps) {
   const { maps, sounds: SOUNDS, phrases: PHRASES, reactions: REACTIONS, frames: FRAMES } = useContent();
   const map = maps.find((m) => m.id === view.map);
   const scene = map?.scene ?? view.map ?? "casino";
@@ -126,7 +140,8 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
         const isMe = p.id === myId;
         const out = view.phase !== "lobby" && p.diceCount === 0 && !(showReveal && r!.hands[p.id]);
         const active = view.phase === "bidding" && view.turnId === p.id;
-        const offline = !p.isBot && !p.left && present !== null && !present.has(p.id);
+        const away = !!view.away?.includes(p.id); // absent > 60 s : un bot joue à sa place
+        const offline = away || (!p.isBot && !p.left && present !== null && !present.has(p.id));
         const hand = showReveal ? r!.hands[p.id] : undefined;
         const f = fx[p.id];
         const sound = f?.kind === "sound" ? SOUNDS.find((s) => s.id === f.id) : undefined;
@@ -188,11 +203,18 @@ export function Stage({ view, myId, geo, present, shaking, peek, fx, onCupClick,
                 <div className="st-hand-in">{hand.map((d, k) => <DieImg key={k} value={d} size={desktop ? 34 : 30} hl={counts(d)} dim={!counts(d)} />)}</div>
               ) : view.phase !== "lobby" && (
                 <div className="st-dice">
-                  {p.left ? "a quitté" : out ? "spectateur" : <><img src={`${G}die5.webp`} alt="" /> {p.diceCount} dé{p.diceCount > 1 ? "s" : ""}</>}
+                  {p.left ? "a quitté" : out ? "spectateur" : (
+                    // un emplacement par dé de départ : les dés perdus restent visibles, grisés
+                    <span className="st-slots" aria-label={`${p.diceCount} dé${p.diceCount > 1 ? "s" : ""}`}>
+                      {Array.from({ length: Math.max(view.config?.startDice ?? 5, p.diceCount) }, (_, k) => (
+                        <img key={k} src={`${G}die5.webp`} alt="" className={k < p.diceCount ? "" : "lost"} />
+                      ))}
+                    </span>
+                  )}
                 </div>
               )}
-              {active && <div className="st-turn">{isMe ? "à toi !" : p.isBot ? "réfléchit…" : "joue…"}</div>}
-              {offline && !active && view.phase !== "lobby" && <div className="st-turn off">déconnecté</div>}
+              {active && <div className="st-turn">{isMe ? "à toi !" : p.isBot || away ? "réfléchit…" : "joue…"} <Countdown deadline={view.deadline} skew={skew} /></div>}
+              {offline && view.phase !== "lobby" && !p.left && !out && <div className="st-turn off">{away ? "absent · un bot joue" : "déconnecté"}</div>}
             </div>
           </div>
         );

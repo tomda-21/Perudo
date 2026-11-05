@@ -21,15 +21,15 @@ export function checkBid(
   if (qty > diceInPlay) return `Il n'y a que ${diceInPlay} dés en jeu`;
 
   if (!prev) {
-    if (face === 1) return "Interdit d'ouvrir sur les pax";
+    // en Palifico on peut ouvrir sur les pax (ils ne sont pas jokers)
+    if (face === 1 && !palifico) return "Interdit d'ouvrir sur les pax";
     return null;
   }
 
-  // Palifico : les 1 ne sont pas jokers → valeur normale (la plus faible)
+  // Palifico : la valeur de la première annonce est verrouillée, seule la quantité monte
   if (palifico) {
-    if (qty > prev.qty) return null;
-    if (qty === prev.qty && face > prev.face) return null;
-    return "Il faut monter la quantité, ou garder la quantité et monter la valeur";
+    if (face !== prev.face) return "Palifico : la valeur est verrouillée, monte seulement la quantité";
+    return qty > prev.qty ? null : "Palifico : il faut monter la quantité";
   }
 
   const prevPax = prev.face === 1;
@@ -58,8 +58,8 @@ export function checkBid(
  * Utilisée par l'interface pour proposer directement une annonce valable.
  */
 export function minQtyFor(prev: Bid | null, face: number, palifico: boolean): number | null {
-  if (!prev) return face === 1 ? null : 1;
-  if (palifico) return face > prev.face ? prev.qty : prev.qty + 1;
+  if (!prev) return face === 1 && !palifico ? null : 1;
+  if (palifico) return face === prev.face ? prev.qty + 1 : null;
   const prevPax = prev.face === 1, nextPax = face === 1;
   if (!prevPax && !nextPax) return face > prev.face ? prev.qty : prev.qty + 1;
   if (!prevPax && nextPax) return Math.ceil(prev.qty / 2);
@@ -75,3 +75,19 @@ export function countMatching(hands: number[][], face: number, palifico: boolean
   return n;
 }
 
+
+/**
+ * Plus petite surenchère légale (utilisée quand le temps est écoulé).
+ * null si aucune surenchère n'est possible (il faut alors crier Dudo).
+ */
+export function minimalRaise(prev: Bid, palifico: boolean, diceInPlay: number): Bid | null {
+  const cands: Bid[] = [];
+  if (palifico) cands.push({ qty: prev.qty + 1, face: prev.face });
+  else if (prev.face === 1) cands.push({ qty: prev.qty + 1, face: 1 }, { qty: prev.qty * 2 + 1, face: 2 });
+  else {
+    for (let f = prev.face + 1; f <= 6; f++) cands.push({ qty: prev.qty, face: f });
+    cands.push({ qty: prev.qty + 1, face: prev.face });
+    cands.push({ qty: Math.ceil(prev.qty / 2), face: 1 });
+  }
+  return cands.find((b) => checkBid(prev, b, palifico, diceInPlay) === null) ?? null;
+}
