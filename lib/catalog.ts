@@ -13,7 +13,12 @@ export const MAPS = [
   { id: "hell", name: "Enfer", icon: "🔥", image: "/art/maps/hell.webp", art: false },
   { id: "heaven", name: "Paradis", icon: "🪽", image: "/art/maps/heaven.webp", art: false },
   { id: "street", name: "Rue urbaine", icon: "🏙️", image: "/art/maps/street.webp", art: false },
+  { id: "casino", name: "Casino du Gobelin", icon: "🎰", image: "/art/game/map-casino.webp", art: false },
 ] as const;
+/** Décors de partie intégrés (table comprise) ; une map importée dans l'admin les remplace. */
+export const GAME_SCENES = ["beach", "hell", "heaven", "street", "casino"] as const;
+export const gameBg = (scene: string) => `/art/game/map-${(GAME_SCENES as readonly string[]).includes(scene) ? scene : "beach"}.webp`;
+export const gameTable = (scene: string) => `/art/game/table-${(GAME_SCENES as readonly string[]).includes(scene) ? scene : "beach"}.webp`;
 
 // Illustrations de l'accueil (même principe)
 export const HOME_ART = { background: "/art/home/background.webp", mascot: "/art/home/mascot.webp", art: false };

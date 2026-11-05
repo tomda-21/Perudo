@@ -2,7 +2,7 @@
 // rejouer, bots, map, quitter. Le serveur vérifie tout.
 import {
   addBot, botStep, callExact, callLiar, leaveGame, nextRound, placeBid, removeBot, restart,
-  ResultRow, RuleError, setMap, startGame, takeResults, viewFor,
+  ResultRow, RuleError, startGame, takeResults, viewFor,
 } from "@/lib/rules";
 import { mutate } from "@/lib/store";
 import { addResults } from "@/lib/profiles";
@@ -15,7 +15,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
     const code = cleanCode((await params).code);
     const body = await req.json();
     const token = req.headers.get("x-player-token");
-    const pool = body.type === "setMap" ? mapPool(await publicContent()) : undefined;
+    // la map est tirée par le serveur au lancement (et à chaque « rejouer ») parmi les maps activées
+    const pool = body.type === "start" || body.type === "restart" ? mapPool(await publicContent()) : undefined;
     let meId = "";
     let rows: ResultRow[] = [];
     const state = await mutate(code, (s) => {
@@ -27,15 +28,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
       const playing = ["bid", "liar", "exact"].includes(body.type);
       if (playing && (me.left || me.diceCount === 0)) throw new RuleError("Tu es éliminé : tu regardes la partie");
       switch (body.type) {
-        case "start": startGame(s, me.id); break;
+        case "start": startGame(s, me.id, pool); break;
         case "bid": placeBid(s, me.id, { qty: Number(body.qty), face: Number(body.face) }); break;
         case "liar": callLiar(s, me.id); break;
         case "exact": callExact(s, me.id); break;
         case "next": nextRound(s, me.id); break;
-        case "restart": restart(s, me.id); break;
+        case "restart": restart(s, me.id, pool); break;
         case "addBot": addBot(s, me.id); break;
         case "removeBot": removeBot(s, me.id, String(body.botId)); break;
-        case "setMap": setMap(s, me.id, String(body.map), pool); break;
         case "leave": leaveGame(s, me.id); break;
         // n'importe quel joueur connecté peut « réveiller » le bot dont c'est le tour
         case "bot": botStep(s, String(body.expect)); break;

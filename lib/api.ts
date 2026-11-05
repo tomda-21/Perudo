@@ -18,8 +18,5 @@ export function playerFromToken(s: GameState, token: string | null) {
 
 export const cleanCode = (c: string) => c.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
 
-/** Maps proposées (publiées par l'admin) et celles autorisées pour le tirage au hasard. */
-export const mapPool = (c: PublicContent) => ({
-  all: c.maps.map((m) => m.id),
-  random: c.maps.filter((m) => m.random).map((m) => m.id),
-});
+/** Maps activées : publiées dans l'admin ET cochées « active dans le tirage ». Personne ne choisit : le serveur tire au sort. */
+export const mapPool = (c: PublicContent) => c.maps.filter((m) => m.random !== false).map((m) => m.id);

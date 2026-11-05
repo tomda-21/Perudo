@@ -7,7 +7,8 @@ import Cup from "../Cup";
 import Scene from "../Scene";
 import Avatar from "../Avatar";
 import { adminApi, Confirm, EMOJIS, Field, FileField, fmt, StatusBadge } from "./kit";
-import { FRAME_STYLES, MAP_ANIMS, MapAnim, Status, VICTORY_STYLES } from "@/lib/content";
+import { assetUrl, FRAME_STYLES, MAP_ANIMS, MapAnim, Status, VICTORY_STYLES } from "@/lib/content";
+import { gameBg, gameTable } from "@/lib/catalog";
 import { METRIC_LABEL } from "@/lib/economy";
 import Victory from "../Victory";
 import { SOUNDS } from "@/lib/catalog";
@@ -377,14 +378,18 @@ function Editor({ kind, data, onChange, isNew }: { kind: Kind; data: Record<stri
           <div className="a-row"><input type="color" value={String(data.felt ?? "#2f8a52")} onChange={(e) => set("felt", e.target.value)} />
             {data.felt ? <button type="button" className="a-link" onClick={() => set("felt", null)}>Couleur par défaut</button> : null}</div>
         </Field>
-        <label className="a-check"><input type="checkbox" checked={data.random !== false} onChange={(e) => set("random", e.target.checked)} /> Peut être tirée au hasard</label>
+        <label className="a-check"><input type="checkbox" checked={data.random !== false} onChange={(e) => set("random", e.target.checked)} /> Active : peut sortir au tirage au sort des parties</label>
+        <p className="a-hint">Personne ne choisit la map d&apos;une partie (ni l&apos;hôte, ni l&apos;admin) : le serveur la tire au sort à chaque nouvelle partie parmi les maps publiées et actives, sans reprendre la précédente.</p>
       </div>
       <div className="a-preview">
-        <span className="a-label">Aperçu avec la table</span>
-        <div className="a-map-preview" style={data.felt ? ({ ["--felt" as string]: String(data.felt) } as CSSProperties) : undefined}>
-          <Scene id="__preview__" contained override={{ scene: data.scene as string, image: data.image as string, layers, anims }} />
-          <div className="a-mini-table"><div className="table-rail"><div className="table-felt" /></div></div>
+        <span className="a-label">Aperçu en partie</span>
+        <div className="a-map-preview game">
+          {data.image
+            ? <><img src={assetUrl(data.image as string) ?? ""} alt="" /><img className="a-map-table" src={gameTable(String(data.scene ?? "beach"))} alt="" /></>
+            : <img src={gameBg(String(data.scene ?? "beach"))} alt="" />}
+          <Scene id="__preview__" contained override={{ scene: "none", image: null, layers, anims }} />
         </div>
+        <span className="a-hint">Sans image importée : décor intégré « {String(data.scene ?? "—")} ». Une image importée remplace le décor (la table est posée par-dessus).</span>
       </div>
     </div>
   );

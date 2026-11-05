@@ -10,7 +10,7 @@ import { realtime } from "./client";
 import { getSettings } from "./settings";
 import { playSound, speakPhrase } from "./sfx";
 import { getContent } from "./content-client";
-import type { SeatFx } from "@/components/Table";
+import type { SeatFx } from "@/components/GameStage";
 
 export type FxKind = "sound" | "phrase" | "reaction";
 type Seat = { id: string; fxOwned?: string[] | null };

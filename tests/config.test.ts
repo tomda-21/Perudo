@@ -1,7 +1,7 @@
 // Réglages admin : figés par partie
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addBot, addPlayer, botStep, callExact, callLiar, newGame, nextRound, placeBid, setMap, startGame, turnKey } from "../lib/rules";
+import { addBot, addPlayer, botStep, callExact, callLiar, newGame, nextRound, placeBid, startGame, turnKey } from "../lib/rules";
 import { cleanCup, cleanMap, cleanSettings, cleanSound, ContentError } from "../lib/content";
 
 test("nombre de dés au départ réglable (figé à la création)", () => {
@@ -33,16 +33,6 @@ test("palifico désactivé : jamais déclenché", () => {
   callLiar(s, "b"); // a tombe à 1 dé
   nextRound(s, "b");
   assert.equal(s.palifico, false);
-});
-
-test("maps : seules les maps autorisées, tirage parmi celles cochées", () => {
-  const pool = { all: ["beach", "lune"], random: ["lune"] };
-  for (let i = 0; i < 10; i++) assert.equal(newGame("T", undefined, { pool }).map, "lune");
-  const s = newGame("T", undefined, { pool });
-  addPlayer(s, "a", "a", "a");
-  setMap(s, "a", "beach", pool);
-  assert.equal(s.map, "beach");
-  assert.throws(() => setMap(s, "a", "hell", pool), /inconnue/);
 });
 
 test("validation des contenus admin", () => {

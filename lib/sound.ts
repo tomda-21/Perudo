@@ -74,6 +74,12 @@ export const sounds = {
     noiseBurst(a, t + 0.95, 0.12, 300, 0.9); // le « boum » sur la table
   }),
   bid: () => play((a, t) => tone(a, t, 520, 780, 0.12, 0.15)),
+  /** Petit « clic » de sélection (face de dé, quantité). */
+  tick: () => play((a, t) => tone(a, t, 900, 1300, 0.05, 0.07, "sine")),
+  /** Grand éclair du Dudo. */
+  dudo: () => play((a, t) => { noiseBurst(a, t, 0.35, 1800, 0.7); tone(a, t, 220, 70, 0.6, 0.32, "sawtooth"); noiseBurst(a, t + 0.15, 0.5, 400, 0.6); }),
+  /** Exact : « ding » cristallin montant. */
+  exactFx: () => play((a, t) => { [660, 880, 1320, 1760].forEach((f, i) => tone(a, t + i * 0.07, f, f * 1.01, 0.5, 0.11, "sine")); }),
   yourTurn: () => play((a, t) => { tone(a, t, 660, 660, 0.12, 0.12, "sine"); tone(a, t + 0.13, 880, 880, 0.18, 0.12, "sine"); }),
   liar: () => play((a, t) => { tone(a, t, 300, 120, 0.45, 0.3, "sawtooth"); noiseBurst(a, t, 0.2, 800, 0.5); }),
   exact: () => play((a, t) => { [523, 659, 784].forEach((f, i) => tone(a, t + i * 0.08, f, f, 0.25, 0.15)); }),

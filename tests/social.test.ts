@@ -3,23 +3,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   addBot, addPlayer, botStep, callLiar, countsForStats, leaveGame, newGame, nextRound,
-  placeBid, restart, setMap, startGame, takeResults, turnKey, viewFor, GameState,
+  placeBid, restart, startGame, takeResults, turnKey, viewFor, GameState,
 } from "../lib/rules";
 import { CUPS, MAPS, isUnlocked, Stats } from "../lib/catalog";
 
 const prof = (n: string) => ({ profileId: `prof-${n}`, avatar: "gobelin", cup: "classic" });
-
-test("map : tirée au hasard à la création, l'hôte peut la changer", () => {
-  const seen = new Set<string>();
-  for (let i = 0; i < 60; i++) seen.add(newGame("T").map!);
-  assert.equal(seen.size, MAPS.length);
-  const s = newGame("T", "beach");
-  addPlayer(s, "h", "Tom", "t"); addPlayer(s, "a", "Ami", "t2");
-  assert.throws(() => setMap(s, "a", "hell"), /hôte/);
-  setMap(s, "h", "hell");
-  assert.equal(viewFor(s, "a").map, "hell");
-  assert.throws(() => setMap(s, "h", "lune"), /inconnue/);
-});
 
 test("quitter la salle d'attente : retiré, et l'hôte est transmis", () => {
   const s = newGame("T");

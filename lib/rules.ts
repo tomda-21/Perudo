@@ -72,7 +72,8 @@ export type GameState = {
   reveal: Reveal | null;
   nextStarterId: string | null;
   winnerId: string | null;
-  map?: string; // décor de la partie (cosmétique)
+  map?: string; // décor de la partie (cosmétique), tiré par le serveur à chaque nouvelle partie
+  lastMap?: string | null; // map de la partie précédente du salon (pour varier)
   config?: GameConfig; // règles figées à la création du salon
   uid?: string;
   gameNo?: number; // numéro de la partie dans ce salon (rejouer = +1)
@@ -89,8 +90,16 @@ const cfg = (s: GameState) => s.config ?? DEFAULT_CONFIG;
 const startDice = (s: GameState) => cfg(s).startDice;
 
 /** Maps autorisées (gérées par l'admin) : toutes, et celles du tirage au hasard. */
-export type MapPool = { all: string[]; random: string[] };
-export const DEFAULT_POOL: MapPool = { all: MAPS.map((m) => m.id), random: MAPS.map((m) => m.id) };
+// Maps activées (publiées dans l'admin). La map est TOUJOURS tirée au hasard par
+// le serveur au lancement d'une partie : personne ne la choisit (ni l'hôte, ni l'admin).
+export type MapPool = string[];
+export const DEFAULT_POOL: MapPool = MAPS.map((m) => m.id);
+/** Tirage d'une map ; évite de reprendre la précédente quand il y en a au moins deux. */
+export function drawMap(pool: MapPool, last?: string | null): string {
+  const list = pool.length ? pool : DEFAULT_POOL;
+  const choices = list.length >= 2 && last ? list.filter((m) => m !== last) : list;
+  return pick(choices.length ? choices : list);
+}
 const pick = (list: string[]) => list[randomInt(0, list.length)];
 
 // ---------- utilitaires ----------
@@ -119,12 +128,11 @@ const roll = (n: number) => Array.from({ length: n }, () => randomInt(1, 7));
 
 // ---------- création / lobby ----------
 
-export function newGame(code: string, map?: string, opts: { config?: GameConfig; pool?: MapPool } = {}): GameState {
-  const pool = opts.pool ?? DEFAULT_POOL;
-  const randomPool = pool.random.length ? pool.random : pool.all;
+export function newGame(code: string, _unused?: string, opts: { config?: GameConfig } = {}): GameState {
+  void _unused; // (ancien paramètre « map » : la map n'est plus choisie à la création)
   return {
     code,
-    map: map && pool.all.includes(map) ? map : pick(randomPool.length ? randomPool : DEFAULT_POOL.all),
+    map: undefined, // tirée au lancement de la partie
     config: opts.config ?? DEFAULT_CONFIG,
     gameNo: 1,
     uid: randomInt(0, 2 ** 40).toString(36), // identifiant unique (un code de salon peut resservir)
@@ -172,14 +180,6 @@ export function addPlayer(s: GameState, id: string, name: string, token: string,
   });
 }
 
-export function setMap(s: GameState, byPlayerId: string, map: string, pool: MapPool = DEFAULT_POOL) {
-  const p = byId(s, byPlayerId);
-  if (!p.isHost) throw new RuleError("Seul l'hôte peut choisir la map");
-  if (s.phase !== "lobby") throw new RuleError("La partie a déjà commencé");
-  if (map === "random") s.map = pick(pool.random.length ? pool.random : pool.all);
-  else if (pool.all.includes(map)) s.map = map;
-  else throw new RuleError("Map inconnue");
-}
 
 /** Un joueur quitte : il est retiré (salle d'attente) ou éliminé (partie en cours). */
 export function leaveGame(s: GameState, playerId: string) {
@@ -334,11 +334,13 @@ function startRound(s: GameState, starterId: string) {
   s.nextStarterId = null;
 }
 
-export function startGame(s: GameState, byPlayerId: string) {
+export function startGame(s: GameState, byPlayerId: string, pool: MapPool = DEFAULT_POOL) {
   const p = byId(s, byPlayerId);
   if (!p.isHost) throw new RuleError("Seul l'hôte peut lancer la partie");
   if (s.phase !== "lobby") throw new RuleError("La partie a déjà commencé");
   if (s.players.length < MIN_PLAYERS) throw new RuleError("Il faut au moins 2 joueurs");
+  s.map = drawMap(pool, s.lastMap);
+  s.lastMap = s.map;
   const starter = s.players[randomInt(0, s.players.length)];
   startRound(s, starter.id);
 }
@@ -471,7 +473,7 @@ export function nextRound(s: GameState, playerId: string) {
   startRound(s, s.nextStarterId);
 }
 
-export function restart(s: GameState, playerId: string) {
+export function restart(s: GameState, playerId: string, pool: MapPool = DEFAULT_POOL) {
   const p = byId(s, playerId);
   if (!p.isHost) throw new RuleError("Seul l'hôte peut relancer une partie");
   if (s.phase !== "finished") throw new RuleError("La partie n'est pas terminée");
@@ -486,6 +488,8 @@ export function restart(s: GameState, playerId: string) {
     x.st = freshStats();
   }
   s.gameNo = (s.gameNo ?? 1) + 1;
+  s.map = drawMap(pool, s.lastMap ?? s.map); // nouvelle partie = nouveau tirage
+  s.lastMap = s.map;
   s.recorded = false;
   s.abandoned = false;
   s.round = 0;

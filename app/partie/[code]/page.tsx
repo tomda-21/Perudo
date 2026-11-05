@@ -7,14 +7,16 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import Die from "@/components/Die";
-import Table from "@/components/Table";
 import Scene from "@/components/Scene";
+import { CallFx, DESKTOP, DieImg, G, MapIntro, MOBILE, Stage, useLayout } from "@/components/GameStage";
+import { DesktopBar, MobileBar } from "@/components/GameBar";
 import Victory from "@/components/Victory";
 import Avatar from "@/components/Avatar";
 import { Modal } from "@/components/Panel";
 import { SettingsModal } from "@/components/Menus";
-import { ControlBar, Lobby } from "@/components/GameControls";
+import { Lobby } from "@/components/GameControls";
+import { gameBg } from "@/lib/catalog";
+import { assetUrl } from "@/lib/content";
 import { api, getSession, lastName, Progress, realtime, rememberName, saveSession, Session } from "@/lib/client";
 import { sounds, unlockAudio } from "@/lib/sound";
 import { useSettings } from "@/lib/settings";
@@ -24,6 +26,7 @@ import type { PlayerView } from "@/lib/rules";
 
 const faceLabel = (face: number) => (face === 1 ? "pax" : `${face}`);
 const bidText = (b: { qty: number; face: number }) => `${b.qty} × ${faceLabel(b.face)}`;
+const FX_MS = 1700;
 const SHAKE_MS = 1300;
 
 export default function GamePage() {
@@ -42,6 +45,9 @@ export default function GamePage() {
   const [prog, setProg] = useState<Progress | null>(null);
   const [gain, setGain] = useState<{ doblons: number; xp: number } | null>(null);
   const [dialog, setDialog] = useState<null | "quit" | "settings">(null);
+  const [callFx, setCallFx] = useState<null | { kind: "liar" | "exact"; success: boolean; key: number }>(null);
+  const [intro, setIntro] = useState<string | null>(null);
+  const layout = useLayout();
   const [settings, setSettings] = useSettings();
   const { maps: MAPS, sounds: SOUNDS, phrases: PHRASES, reactions: REACTIONS, victories: VICTORIES, settings: game } = useContent();
   // ma progression : objets possédés pour le soundboard, gains de fin de partie
@@ -142,9 +148,16 @@ export default function GamePage() {
         setTimeout(() => sounds.yourTurn(), view.round !== p.round ? SHAKE_MS : 0);
         try { navigator.vibrate?.(80); } catch {}
       }
+      // nouvelle partie (lancement ou « rejouer ») : présentation de la map tirée au sort
+      if (view.phase === "bidding" && view.round === 1 && p.round !== 1 && view.map) {
+        setIntro(view.map);
+        setTimeout(() => setIntro(null), 2300);
+      }
       if ((view.phase === "reveal" || view.phase === "finished") && p.phase === "bidding" && view.reveal) {
         const r = view.reveal;
-        if (r.call === "liar") sounds.liar(); else sounds.exact();
+        setCallFx({ kind: r.call, success: r.call === "exact" ? !!r.gainerId : r.loserId !== r.callerId, key: Date.now() });
+        setTimeout(() => setCallFx(null), FX_MS);
+        if (r.call === "liar") { sounds.dudo(); sounds.liar(); } else { sounds.exactFx(); sounds.exact(); }
         setTimeout(() => (r.gainerId ? sounds.gain() : sounds.lose()), 700);
         if (view.phase === "finished" && !view.abandoned) setTimeout(() => sounds.win(), 1500);
       }
@@ -209,63 +222,94 @@ export default function GamePage() {
   const myTurn = view.phase === "bidding" && view.turnId === me.id;
   const imOut = view.phase !== "lobby" && me.diceCount === 0;
   const onlyBots = view.players.filter((p) => !p.isBot && !p.left).length === 1;
+
   const mapItem = MAPS.find((m) => m.id === view.map);
-  const mapName = mapItem?.name;
+  const scene = mapItem?.scene ?? view.map ?? "casino";
+  const geo = layout.mobile ? MOBILE : DESKTOP;
+  const barProps = { view, myTurn: myTurn && !shaking, busy, act, peek, onPeek: () => setPeek((x) => !x), shaking, waitingFor: name(view.turnId), imOut };
+  const introMap = intro ? MAPS.find((m) => m.id === intro) : null;
+  const calm = settings.reduceMotion;
+
+  const stage = (
+    <Stage view={view} myId={me.id} geo={geo} present={present} shaking={shaking} peek={peek} fx={fx}
+      onCupClick={() => setPeek((x) => !x)} withBackground>
+      {!layout.mobile && view.phase === "bidding" && <DesktopBar {...barProps} />}
+      {!layout.mobile && view.phase !== "bidding" && (
+        <div className="gbar">
+          <img className="gbar-bg" src={`${G}bar-blank.webp`} alt="" draggable={false} style={{ left: 122, top: 641, width: 1490, height: 321 }} />
+        </div>
+      )}
+    </Stage>
+  );
+
+  // panneau du bas hors scène (salle d'attente, révélation) : même emplacement sur ordinateur
+  const lowerPanel = view.phase === "lobby"
+    ? <Lobby view={view} isHost={me.isHost} busy={busy} copied={copied} onShare={share} act={act} />
+    : view.phase === "reveal"
+      ? <div className="reveal-actions">
+          <button className="gimg-btn act wide" disabled={busy} onClick={() => act({ type: "next" })}>
+            <img src={`${G}bid.webp`} alt="" draggable={false} />
+            <span className="glbl act">Manche suivante</span>
+          </button>
+          <span className="reveal-next">{name(view.nextStarterId)} commence</span>
+        </div>
+      : null;
 
   return (
-    <main className={`game-screen phase-${view.phase} map-${mapItem?.scene ?? view.map ?? "beach"} ${myTurn ? "my-turn" : ""}`}
-      style={mapItem?.felt ? ({ ["--felt" as string]: mapItem.felt } as CSSProperties) : undefined}>
-      <Scene id={view.map ?? "beach"} />
+    <main className={`game2 ${layout.mobile ? "is-mobile" : "is-desktop"} phase-${view.phase} map-${scene} ${myTurn ? "my-turn" : ""} ${calm ? "calm" : ""} ${callFx ? `shake-${callFx.kind}` : ""}`}>
+      {/* fond : le décor de la map, flouté, pour remplir l'écran autour de la scène */}
+      <div className="g2-backdrop" style={{ backgroundImage: `url(${(mapItem?.image && assetUrl(mapItem.image)) || gameBg(scene)})` }} />
 
-      <header className="hud">
-        <div className="hud-plaque">
-          <span className="hud-dice">🎲</span>
+      {layout.mobile ? (
+        <div className="g2-mstage" style={{ height: MOBILE.H * layout.s }}>
+          <div className="g2-stage" style={{ width: MOBILE.W, height: MOBILE.H, transform: `scale(${layout.s})` }}>{stage}</div>
+        </div>
+      ) : (
+        <div className="g2-stage desk" style={{ width: DESKTOP.W, height: DESKTOP.H, transform: `translateX(-50%) scale(${layout.s})` }}>
+          {stage}
+          {lowerPanel && <div className="g2-lower">{lowerPanel}</div>}
+        </div>
+      )}
+
+      {/* ambiance de la map (braises, paillettes…) — décoratif, ne bloque aucun clic */}
+      {!calm && (mapItem?.anims?.length ?? 0) > 0 && (
+        <div className="g2-ambient"><Scene id="__ambient__" override={{ scene: null, image: null, layers: [], anims: mapItem!.anims }} /></div>
+      )}
+
+      <header className="g2-hud">
+        <div className="g2-hudplaque">
+          <img src={`${G}hudplaque.webp`} alt="" draggable={false} />
           <div>
             <b>{view.phase === "lobby" ? "Salle d'attente" : view.phase === "finished" ? "Partie terminée" : "Partie en cours"}</b>
-            <span>{view.phase === "lobby" ? mapName : `Manche ${view.round}`}{imOut && view.phase !== "finished" ? " · spectateur" : ""}</span>
+            <span>{view.phase === "lobby" ? `Code ${view.code} · map tirée au lancement` : `Manche ${view.round}${mapItem ? ` · ${mapItem.name}` : ""}`}{imOut && view.phase !== "finished" ? " · spectateur" : ""}</span>
           </div>
         </div>
-        <div className="hud-right">
-          {view.phase !== "finished" && game.fxEnabled && <>
-            <button className="round-btn mobile-only" onClick={() => setPanel(panel === "sounds" ? null : "sounds")} aria-label="Sons">🎺</button>
-            <button className="round-btn mobile-only" onClick={() => setPanel(panel === "phrases" ? null : "phrases")} aria-label="Phrases">💬</button>
-            <button className="round-btn mobile-only" onClick={() => setPanel(panel === "reactions" ? null : "reactions")} aria-label="Réactions">😂</button>
-          </>}
-          <button className="round-btn desktop-only" onClick={() => setSettings({ gameSounds: !settings.gameSounds, soundboard: !settings.gameSounds })}
+        <div className="g2-hud-right">
+          <button className="g2-round" onClick={() => setSettings({ gameSounds: !settings.gameSounds, soundboard: !settings.gameSounds })}
             aria-label={settings.gameSounds ? "Couper le son" : "Activer le son"} title={settings.gameSounds ? "Couper le son" : "Activer le son"}>
-            {settings.gameSounds ? "🔊" : "🔇"}
+            <img src={`${G}btn-sound.webp`} alt="" />{!settings.gameSounds && <span className="g2-mute">✕</span>}
           </button>
-          <button className="round-btn" onClick={() => setDialog("settings")} aria-label="Paramètres" title="Paramètres">⚙️</button>
-          <button className="gbtn gbtn-red gbtn-sm" onClick={() => setDialog("quit")} aria-label="Quitter">⏏<span className="desktop-only">&nbsp;Quitter</span></button>
+          <button className="g2-round" onClick={() => setDialog("settings")} aria-label="Paramètres" title="Paramètres"><img src={`${G}btn-gear.webp`} alt="" /></button>
+          <button className="g2-quit" onClick={() => setDialog("quit")} aria-label="Quitter"><img src={`${G}btn-quit.webp`} alt="" /><span>Quitter</span></button>
         </div>
       </header>
 
-      <Table view={view} myId={me.id} present={present} shaking={shaking} peek={peek} fx={fx}
-        onCupClick={() => setPeek((x) => !x)} />
+      {layout.mobile && (
+        <div className="g2-mlower">
+          {view.phase === "bidding" ? <MobileBar {...barProps} /> : lowerPanel}
+        </div>
+      )}
 
-      {/* plateau de mes dés (quand je soulève mon gobelet) */}
+      {/* mes dés, quand je soulève mon gobelet (personne d'autre ne les reçoit) */}
       {view.phase === "bidding" && !imOut && (
-        <div className={`dice-tray ${peek && !shaking ? "open" : ""}`} aria-hidden={!peek}>
-          {(view.me?.hand ?? []).map((d, i) => <Die key={i} value={d} size="lg" />)}
+        <div className={`g2-tray ${peek && !shaking ? "open" : ""}`} aria-hidden={!peek} onClick={() => setPeek(false)}>
+          <span className="g2-tray-lbl">Mes dés</span>
+          {(view.me?.hand ?? []).map((d, i) => <DieImg key={i} value={d} size={layout.mobile ? 50 : 74} />)}
         </div>
       )}
 
-      {view.phase === "lobby" && (
-        <Lobby view={view} isHost={me.isHost} busy={busy} copied={copied} onShare={share} act={act} />
-      )}
-
-      {view.phase === "bidding" && (
-        <ControlBar view={view} myTurn={myTurn && !shaking} imOut={imOut} busy={busy} act={act}
-          peek={peek} onPeek={() => setPeek((x) => !x)} shaking={shaking} waitingFor={name(view.turnId)} />
-      )}
-
-      {view.phase === "reveal" && (
-        <div className="control-bar center-bar">
-          <button className="gbtn gbtn-green gbtn-xl" disabled={busy} onClick={() => act({ type: "next" })}>
-            ▶ Manche suivante · {name(view.nextStarterId)} commence
-          </button>
-        </div>
-      )}
+      {callFx && !calm && <CallFx key={callFx.key} kind={callFx.kind} success={callFx.success} />}
+      {introMap && <MapIntro name={introMap.name} icon={introMap.icon} />}
 
       {view.phase === "finished" && (
         <>
@@ -287,7 +331,7 @@ export default function GamePage() {
               </ul>
               <p className="muted small">{view.round} manches · {onlyBots ? "partie d'entraînement (non comptée)" : "résultat enregistré dans les stats"}</p>
               <div className="row">
-                {me.isHost && !view.abandoned && <button className="gbtn gbtn-gold" disabled={busy} onClick={() => act({ type: "restart" })}>🔁 Rejouer</button>}
+                {me.isHost && !view.abandoned && <button className="gbtn gbtn-gold" disabled={busy} onClick={() => act({ type: "restart" })}>🔁 Rejouer (nouvelle map)</button>}
                 <button className="gbtn gbtn-dark" onClick={quit}>🏠 Accueil</button>
               </div>
               {!me.isHost && <p className="muted small">L&apos;hôte peut relancer une partie.</p>}
@@ -296,22 +340,24 @@ export default function GamePage() {
         </>
       )}
 
-      {/* soundboard : Sons / Phrases, utilisables à tout moment (même éliminé) */}
+      {/* soundboard : Sons / Phrases / Réactions — panneau qui se ferme, utilisable même hors de son tour */}
       {view.phase !== "finished" && game.fxEnabled && (
-        <div className={`fx-dock ${panel ? "open" : ""}`}>
+        <aside className={`g2-fx ${panel ? "open" : ""}`}>
+          <div className="g2-fx-tabs">
+            {([["sounds", "🔊", "Sons"], ["phrases", "💬", "Phrases"], ["reactions", "😂", "Réactions"]] as const).map(([k, i, l]) => (
+              <button key={k} className={panel === k ? "on" : ""} onClick={() => setPanel(panel === k ? null : k)} aria-expanded={panel === k}>
+                <span>{i}</span><em>{l}</em>
+              </button>
+            ))}
+          </div>
           {panel && (
-            <div className="panel fx-panel">
+            <div className="g2-fx-panel">
               <button className="close-btn" onClick={() => setPanel(null)} aria-label="Fermer">✕</button>
-              <div className="tabs">
-                <button className={panel === "sounds" ? "on" : ""} onClick={() => setPanel("sounds")}>🔊 Sons</button>
-                <button className={panel === "phrases" ? "on" : ""} onClick={() => setPanel("phrases")}>💬 Phrases</button>
-                <button className={panel === "reactions" ? "on" : ""} onClick={() => setPanel("reactions")}>😂 Réactions</button>
-              </div>
-              <div className={`fx-grid ${panel === "phrases" ? "phrases" : ""}`}>
+              <div className={`g2-fx-grid ${panel === "phrases" ? "phrases" : ""}`}>
                 {(panel === "sounds" ? SOUNDS.filter((s) => owned("sound", s.id, s.price)).map((s) => ({ id: s.id, label: s.label, icon: s.icon }))
                   : panel === "reactions" ? REACTIONS.filter((r) => owned("reaction", r.id, r.price)).map((r) => ({ id: r.id, label: r.label, icon: r.emoji }))
                   : PHRASES.filter((p) => owned("phrase", p.id, p.price)).map((p) => ({ id: p.id, label: p.text, icon: "💬" }))).map((x) => (
-                  <button key={x.id} className="fx-btn" disabled={Date.now() < cooldownUntil}
+                  <button key={x.id} className="g2-fx-btn" disabled={Date.now() < cooldownUntil}
                     onClick={() => { unlockAudio(); send(panel === "sounds" ? "sound" : panel === "reactions" ? "reaction" : "phrase", x.id); }}>
                     <span>{x.icon}</span> {x.label}
                   </button>
@@ -320,17 +366,12 @@ export default function GamePage() {
               <Cooldown until={cooldownUntil} />
             </div>
           )}
-          <div className="fx-toggles">
-            <button className={`gbtn gbtn-dark gbtn-sm ${panel === "sounds" ? "on" : ""}`} onClick={() => setPanel(panel === "sounds" ? null : "sounds")}>🔊 Sons</button>
-            <button className={`gbtn gbtn-dark gbtn-sm ${panel === "phrases" ? "on" : ""}`} onClick={() => setPanel(panel === "phrases" ? null : "phrases")}>💬 Phrases</button>
-            <button className={`gbtn gbtn-dark gbtn-sm ${panel === "reactions" ? "on" : ""}`} onClick={() => setPanel(panel === "reactions" ? null : "reactions")}>😂 Réactions</button>
-          </div>
-        </div>
+        </aside>
       )}
 
       {view.phase === "bidding" && view.history.length > 0 && (
-        <section className="history">
-          {view.history.slice(-8).map((h, i) => (
+        <section className="g2-history">
+          {view.history.slice(-6).map((h, i) => (
             <span key={i} className="history-item">{name(h.playerId)} : {bidText(h.bid)}</span>
           ))}
         </section>
