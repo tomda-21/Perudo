@@ -39,11 +39,11 @@ function useCountdown(iso: string | null | undefined) {
 
 /** Échelle de la scène (couvre l'écran) + mode téléphone. */
 function useStage() {
-  const [v, setV] = useState({ s: 0.6, mobile: false, hs: 0.6, left: 18, right: 18, top: 14 });
+  const [v, setV] = useState({ s: 0.6, mobile: false, short: false, hsL: 0.6, hsR: 0.6, left: 12, right: 12, top: 12 });
   useEffect(() => {
     const f = () => {
       const w = window.innerWidth, h = window.innerHeight;
-      const mobile = w / h < 1.15 || w < 700;
+      const mobile = w / h < 1.15; // portrait → colonne ; tout écran en paysage garde la scène
       // on recouvre l'écran, mais sans trop rogner les côtés (gobelin, gros dé) :
       // sur un écran plus « carré », le ciel est prolongé en haut à la place
       const cover = Math.max(w / STAGE_W, h / STAGE_H);
@@ -51,14 +51,17 @@ function useStage() {
       const s = Math.min(cover, wide
         ? Math.max(h / STAGE_H, w / (STAGE_W * 1.25))     // très large : décor prolongé sur les côtés
         : Math.max(w / (STAGE_W - 20), (h * 0.8) / STAGE_H)); // plus carré : ciel prolongé en haut
-      // le profil et les Doblons se posent à l'emplacement prévu dans le décor,
-      // tout en restant toujours entièrement visibles
-      const sl = (w - STAGE_W * s) / 2, st = h - STAGE_H * s, hs = Math.max(0.5, s);
-      setV({
-        s, mobile, hs,
-        left: Math.max(12, sl + 22 * s), top: Math.max(12, st + 18 * s),
-        right: Math.max(12, w - (sl + 2338 * s)),
-      });
+      // le profil (gauche) et les Doblons + menus (droite) se calent sur les bords de l'écran,
+      // et rétrécissent si besoin pour ne jamais toucher le logo au centre
+      const short = h < 560;
+      const gap = (w - 730 * s * (short ? 0.82 : 1)) / 2 - 26;
+      const base = Math.max(0.5, s);
+      const logoTop = h - STAGE_H * s + 100 * s; // haut du logo à l'écran
+      const clear = logoTop > 12 + 210 * base;   // le logo est sous les infos : pas besoin de rétrécir
+      const hsL = clear ? base : Math.max(0.3, Math.min(base, gap / 570));
+      const hsR = clear ? base : Math.max(0.3, Math.min(base, gap / (short ? 560 : 910)));
+      const edge = 12;
+      setV({ s, mobile, short, hsL, hsR, left: edge, right: edge, top: Math.max(edge, 10 * s) });
     };
     f();
     window.addEventListener("resize", f);
@@ -78,7 +81,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [menu, setMenu] = useState<Menu>(null);
-  const { s, mobile, hs, left, right, top } = useStage();
+  const { s, mobile, short, hsL, hsR, left, right, top } = useStage();
 
   useEffect(() => setName((n) => n || lastName()), []);
   useEffect(() => { if (profile.data) setName((n) => n || profile.data!.profile.name); }, [profile.data]);
@@ -149,7 +152,7 @@ export default function Home() {
         ) : (
           <>
             <span className="hp-level">Mode invité</span>
-            <span className="hp-guest">Créer un compte / Se connecter</span>
+            <span className="hp-guest"><span className="hp-guest-long">Créer un compte / </span>Se connecter</span>
           </>
         )}
       </span>
@@ -164,9 +167,9 @@ export default function Home() {
   );
   const TopButtons = (
     <>
-      <button className="hp-btn hp-friends" onClick={() => open("friends")}><span className="hp-emo">👥</span><span>Amis</span>{social.unread > 0 && <i className="hp-badge">{social.unread}</i>}</button>
-      <button className="hp-btn" onClick={() => open("cups")}><img src={`${A}ico-trophy.webp`} alt="" /><span>Mes gobelets</span></button>
-      <button className="hp-btn" onClick={() => open("profile")}><img src={`${A}ico-profile.webp`} alt="" /><span>Mon profil</span></button>
+      <button className="hp-btn hp-friends" aria-label="Amis" onClick={() => open("friends")}><span className="hp-emo">👥</span><span className="hp-lbl">Amis</span>{social.unread > 0 && <i className="hp-badge">{social.unread}</i>}</button>
+      <button className="hp-btn hp-dup" aria-label="Mes gobelets" onClick={() => open("cups")}><img src={`${A}ico-trophy.webp`} alt="" /><span className="hp-lbl">Mes gobelets</span></button>
+      <button className="hp-btn hp-dup" aria-label="Mon profil" onClick={() => open("profile")}><img src={`${A}ico-profile.webp`} alt="" /><span className="hp-lbl">Mon profil</span></button>
       <button className="hp-gear" onClick={() => open("settings")} aria-label="Paramètres"><img src={`${A}ico-gear.webp`} alt="" /></button>
     </>
   );
@@ -185,20 +188,12 @@ export default function Home() {
   );
 
   return (
-    <main className={`home2 ${mobile ? "is-mobile" : "is-desktop"} ${calm ? "calm" : ""}`}>
+    <main className={`home2 ${mobile ? "is-mobile" : `is-desktop${short ? " is-short" : ""}`} ${calm ? "calm" : ""}`}>
       {!mobile ? (
         <>
+          {/* décor de l'accueil : illustration panoramique plein écran (cover), indépendante des composants */}
+          <div className="home-decor" style={bg ? { backgroundImage: `url(${bg})` } : undefined} aria-hidden="true" />
           <div className="stage" style={{ width: STAGE_W, height: STAGE_H, transform: `translateX(-50%) scale(${s})` }}>
-            {!bg && <span className="stage-sky" aria-hidden="true" />}
-            <span className="stage-side stage-side-l" aria-hidden="true" />
-            <span className="stage-side stage-side-r" aria-hidden="true" />
-            <img className="stage-bg" src={bg ?? `${A}bg.webp`} alt="" draggable={false} />
-            {!bg && <span className="stage-fade" aria-hidden="true" />}
-            {/* cascade, lanternes, néons */}
-            <span className="fx-waterfall" style={at(2030, 460, 155, 300)} />
-            {[[250, 372, 120], [70, 465, 110], [2285, 700, 120], [1655, 548, 150], [1948, 222, 120], [1110, 600, 70], [1880, 640, 80]].map(([x, y, r], i) => (
-              <span key={i} className="fx-glow" style={{ left: x - r, top: y - r, width: r * 2, height: r * 2, animationDelay: `${i * 0.7}s` }} />
-            ))}
             <div className="fx-motes" aria-hidden="true">{Array.from({ length: 22 }, (_, i) => <span key={i} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i * 1.3) % 9}s`, animationDuration: `${9 + (i % 5) * 2}s` }} />)}</div>
 
             <img className="goblin" src={goblin} alt="Le gobelin, mascotte de Perudo" style={at(90, 300, 740, 640)} draggable={false} />
@@ -206,8 +201,6 @@ export default function Home() {
 
             <img className="hdie die-float" src={`${A}die-a.webp`} alt="" style={at(982, 12, 92, 89)} />
             <div className="stage-logo" style={at(815, 108, 730, 362)}><Logo image={appearance.logo} shine={!calm} /></div>
-            <img className="hdie die-wobble" src={`${A}die-b.webp`} alt="" style={at(1579, 862, 99, 99)} />
-            <img className="hdie die-wobble" src={`${A}die-c.webp`} alt="" style={at(2134, 829, 152, 142)} />
 
             <button className="play-sign" style={at(814, 664, 749, 249)} onClick={() => { unlockAudio(); sounds.shake(); setMenu("play"); }}>
               <img src={`${A}play.webp`} alt="" draggable={false} />
@@ -215,13 +208,12 @@ export default function Home() {
             </button>
             {cards.map((c) => Card(c, c.pos))}
           </div>
-          <div className="hhud hhud-left" style={{ transform: `scale(${hs})`, left, top }}>{ProfileBadge}</div>
-          <div className="hhud hhud-right" style={{ transform: `scale(${hs})`, right, top }}>{Wallet}{TopButtons}</div>
+          <div className="hhud hhud-left" style={{ transform: `scale(${hsL})`, left, top }}>{ProfileBadge}</div>
+          <div className="hhud hhud-right" style={{ transform: `scale(${hsR})`, right, top }}>{Wallet}{TopButtons}</div>
         </>
       ) : (
         <>
-          <div className="m-bg" style={{ backgroundImage: `url(${bg ?? `${A}bg-mobile.webp`})` }}>
-            <span className="fx-waterfall m-wf" />
+          <div className="m-bg" style={bg ? { backgroundImage: `url(${bg})` } : undefined}>
             <div className="fx-motes" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <span key={i} style={{ left: `${(i * 41) % 100}%`, animationDelay: `${(i * 1.7) % 9}s` }} />)}</div>
           </div>
           <div className="m-top">{ProfileBadge}<div className="m-top-right">{Wallet}<button className="hp-gear hp-friends-m" onClick={() => open("friends")} aria-label="Amis"><span>👥</span>{social.unread > 0 && <i className="hp-badge">{social.unread}</i>}</button><button className="hp-gear" onClick={() => open("settings")} aria-label="Paramètres"><img src={`${A}ico-gear.webp`} alt="" /></button></div></div>

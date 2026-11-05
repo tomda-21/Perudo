@@ -55,3 +55,11 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
 - La table est posée sur le dallage (ombre au sol + ombre portée) ; l'ancien calque de map flouté est retiré pour le casino.
 - Map unique : la plage n'est plus tirée au sort (base + valeurs par défaut). Seul le Casino du Gobelin reste dans le tirage.
 - Vérifié au simulateur : 667×375, 844×390, 1366×768, 1920×1080, 2560×1350. Aucun bouton hors écran, aucun chevauchement. Typecheck OK, 89 tests OK.
+
+### Accueil — nouveau décor (05/11/2026)
+- Illustration panoramique de Tom en fond plein écran (cover, sans déformation) : `public/art/home/bg2.webp` + `bg2-m.webp` (téléphone). Point focal palais/ciel, recadré selon l'écran.
+- Composants inchangés et toujours interactifs (logo, gobelin, Jouer, profil, Doblons, menus, 5 cartes). Anciens effets calés sur l'ancien fond retirés (cascade, halos, dés posés).
+- « Roue du » en double : le texte fantôme incrusté dans `card-wheel.webp` a été effacé du ruban → « Roue du Gobelin » une seule fois.
+- Logo : l'image ne contient que PERUDO. Le « TOMDA » venait du badge de profil qui recouvrait le logo sur écran bas → les infos du haut se calent aux bords et rétrécissent dès qu'elles toucheraient le logo ; en paysage téléphone : menus du haut en icônes (doublons masqués), bulle masquée.
+- Paysage téléphone : l'accueil garde la scène (plus de colonne à défiler). Portrait : colonne, lien invité raccourci.
+- Vérifié au simulateur : 360×740, 390×844, 430×932, 667×375, 740×360, 844×390, 932×430, 1024×600, 1024×768, 1280×1024, 1366×768, 1920×1080, 2348×1284, 2560×1080, 3840×2160. Aucun bouton hors écran, pas de défilement horizontal. Tag de retour : `before-home-bg`.
