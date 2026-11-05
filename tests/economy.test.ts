@@ -12,7 +12,7 @@ const S = (o: Partial<Stats>): Stats => ({ played: 0, wins: 0, losses: 0, rate: 
 
 test("roue : probabilités par défaut = brief, total 100 %", () => {
   const w = Object.fromEntries(DEFAULT_ECONOMY.wheel.prizes.map((p) => [p.id, p.weight]));
-  assert.deepEqual(w, { d75: 40, d150: 25, cosmetic: 15, frag: 12, d300: 6, mystery: 2 });
+  assert.deepEqual(w, { d20: 40, d40: 25, cosmetic: 15, frag: 12, d100: 6, mystery: 2 });
   assert.throws(() => cleanEconomy({ ...DEFAULT_ECONOMY, wheel: { ...DEFAULT_ECONOMY.wheel, prizes: DEFAULT_ECONOMY.wheel.prizes.slice(1) } }), EconomyError);
   assert.doesNotThrow(() => cleanEconomy(DEFAULT_ECONOMY as unknown as Record<string, unknown>));
 });
@@ -20,9 +20,9 @@ test("roue : probabilités par défaut = brief, total 100 %", () => {
 test("roue : le tirage pondéré respecte les poids", () => {
   const n: Record<string, number> = {};
   for (let i = 0; i < 20000; i++) { const p = drawPrize(DEFAULT_ECONOMY.wheel.prizes, Math.random()); n[p.id] = (n[p.id] ?? 0) + 1; }
-  assert.ok(Math.abs(n.d75 / 20000 - 0.4) < 0.02);
+  assert.ok(Math.abs(n.d20 / 20000 - 0.4) < 0.02);
   assert.ok(Math.abs((n.mystery ?? 0) / 20000 - 0.02) < 0.008);
-  assert.equal(drawPrize(DEFAULT_ECONOMY.wheel.prizes, 0).id, "d75");
+  assert.equal(drawPrize(DEFAULT_ECONOMY.wheel.prizes, 0).id, "d20");
   assert.equal(drawPrize(DEFAULT_ECONOMY.wheel.prizes, 0.9999).id, "mystery");
 });
 
@@ -75,14 +75,13 @@ test("gobelets : 1 classique + 10 exploits + 8 mystères avec les bonnes conditi
   assert.deepEqual(cleanCup({ name: "X", category: "mystery", cond: { type: "wins", n: 1 }, image: "/art/cups/tiki.webp" }).cond, { type: "special" });
 });
 
-test("boutique : les 6 phrases d'origine restent gratuites, prix du brief", () => {
-  assert.equal(DEFAULT_CONTENT.phrases.filter((p) => !p.price).length, 6);
-  assert.ok(DEFAULT_CONTENT.phrases.filter((p) => p.price).every((p) => p.price === 200));
-  assert.ok(DEFAULT_CONTENT.sounds.filter((p) => p.price).every((p) => p.price === 300));
-  assert.ok(DEFAULT_CONTENT.reactions.filter((p) => p.price).every((p) => p.price === 350));
-  assert.ok(DEFAULT_CONTENT.frames.filter((p) => !p.reward).every((p) => p.price === 600));
+test("boutique : sons, phrases et réactions offerts ; prix des cosmétiques dans les fourchettes", () => {
+  assert.ok([...DEFAULT_CONTENT.phrases, ...DEFAULT_CONTENT.sounds].every((p) => !p.price));
+  assert.ok(DEFAULT_CONTENT.reactions.every((p) => !p.price));
+  assert.ok(DEFAULT_CONTENT.frames.filter((p) => !p.reward).every((p) => p.price >= 300 && p.price <= 2000 && p.rarity));
+  assert.ok(DEFAULT_CONTENT.victories.filter((p) => p.price).every((p) => p.price >= 1000 && p.price <= 4000 && p.rarity));
+  assert.deepEqual(DEFAULT_CONTENT.cups.filter((c) => c.category === "shop").map((c) => c.price), [8000, 12000, 20000, 25000]);
   assert.ok(DEFAULT_CONTENT.frames.filter((p) => p.reward).every((p) => p.price === 0), "cadres de palier : jamais vendus");
-  assert.ok(DEFAULT_CONTENT.victories.filter((p) => p.price).every((p) => p.price === 1200));
 });
 
 function duel(): GameState {

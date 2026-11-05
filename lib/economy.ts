@@ -8,21 +8,28 @@
 export type Reward = { doblons: number; xp: number };
 export type WheelPrize = {
   id: string; label: string; icon: string;
-  type: "doblons" | "fragment" | "mystery" | "phrase" | "sound" | "reaction";
+  type: "doblons" | "fragment" | "mystery" | "cosmetic" | "phrase" | "sound" | "reaction"; // cosmetic : cadre ou animation non possédé
   amount: number; // Doblons ou fragments
   weight: number; // en %
   active: boolean;
 };
 export type Title = { id: string; name: string; cond: { type: "level"; n: number } | { type: "cup"; id: string } };
 /** Palier de niveau : récompense versée une seule fois (Doblons + éventuellement un cadre). */
+/** Coffre mystère : une seule récompense, tirée côté serveur selon ces pourcentages. */
+export type ChestOdds = { common: number; rare: number; epic: number; legendary: number; fragment: number; mystery: number };
+export type ChestConfig = { id: string; name: string; price: number; compensation: number; odds: ChestOdds };
+export const CHEST_CATS = ["common", "rare", "epic", "legendary", "fragment", "mystery"] as const;
+export type ChestCat = (typeof CHEST_CATS)[number];
 export type LevelReward = { level: number; doblons: number; frame?: string | null };
 
 export type EconomyConfig = {
   rewards: { complete: Reward; win: Reward; liar: Reward; exact: Reward; dailyChallenge: number; weeklyChallenge: number; dailyChallengeXp: number; weeklyChallengeXp: number };
   limits: { liarPerGame: number; exactPerGame: number };
   official: { minHumans: number; minRounds: number; allowBots: boolean };
-  wheel: { cooldownHours: number; duplicateDoblons: number; prizes: WheelPrize[] };
+  wheel: { cooldownHours: number; duplicateDoblons: number; cosmeticDoblons: number; prizes: WheelPrize[] };
+  /** allOwnedDoblons : Doblons donnés PAR fragment une fois tous les mystères possédés. */
   fragments: { needed: number; allOwnedDoblons: number };
+  chests: ChestConfig[];
   levels: { base: number; step: number; quad: number };
   levelRewards: LevelReward[];
   /** Après le dernier palier : quelques Doblons tous les `every` niveaux. */
@@ -41,17 +48,24 @@ export const DEFAULT_ECONOMY: EconomyConfig = {
   // toute partie terminée compte, bots compris (les invités ne gagnent rien)
   official: { minHumans: 1, minRounds: 1, allowBots: true },
   wheel: {
-    cooldownHours: 24, duplicateDoblons: 100,
+    // § 57–58 : 1 tour gratuit / 24 h glissantes, jamais achetable
+    cooldownHours: 24, duplicateDoblons: 100, cosmeticDoblons: 40,
     prizes: [
-      { id: "d75", label: "75 Doblons", icon: "🪙", type: "doblons", amount: 75, weight: 40, active: true },
-      { id: "d150", label: "150 Doblons", icon: "💰", type: "doblons", amount: 150, weight: 25, active: true },
-      { id: "cosmetic", label: "Phrase ou réaction", icon: "💬", type: "phrase", amount: 0, weight: 15, active: true },
-      { id: "frag", label: "Fragment mystère", icon: "🧩", type: "fragment", amount: 1, weight: 12, active: true },
-      { id: "d300", label: "300 Doblons", icon: "👑", type: "doblons", amount: 300, weight: 6, active: true },
+      { id: "d20", label: "20 Doblons", icon: "🪙", type: "doblons", amount: 20, weight: 40, active: true },
+      { id: "d40", label: "40 Doblons", icon: "💰", type: "doblons", amount: 40, weight: 25, active: true },
+      { id: "cosmetic", label: "Cosmétique", icon: "🖼️", type: "cosmetic", amount: 0, weight: 15, active: true },
+      { id: "frag", label: "Fragment universel", icon: "🧩", type: "fragment", amount: 1, weight: 12, active: true },
+      { id: "d100", label: "100 Doblons", icon: "👑", type: "doblons", amount: 100, weight: 6, active: true },
       { id: "mystery", label: "Gobelet mystère", icon: "🎁", type: "mystery", amount: 0, weight: 2, active: true },
     ],
   },
-  fragments: { needed: 6, allOwnedDoblons: 500 },
+  fragments: { needed: 6, allOwnedDoblons: 30 },
+  // § 53–55
+  chests: [
+    { id: "classic", name: "Coffre Classique", price: 300, compensation: 75, odds: { common: 70, rare: 23, epic: 0, legendary: 0, fragment: 6, mystery: 1 } },
+    { id: "rare", name: "Coffre Rare", price: 800, compensation: 200, odds: { common: 20, rare: 50, epic: 20, legendary: 0, fragment: 8, mystery: 2 } },
+    { id: "epic", name: "Coffre Épique", price: 2000, compensation: 500, odds: { common: 0, rare: 15, epic: 45, legendary: 25, fragment: 10, mystery: 5 } },
+  ],
   // XP pour passer du niveau n à n+1 : 100 + 30 × (n − 1) + (n − 1)²
   levels: { base: 100, step: 30, quad: 1 },
   levelRewards: [
@@ -103,7 +117,7 @@ const rew = (x: unknown, d: Reward): Reward => {
   const o = (x ?? {}) as Record<string, unknown>;
   return { doblons: int(o.doblons, 0, 100000, d.doblons), xp: int(o.xp, 0, 100000, d.xp) };
 };
-const PRIZE_TYPES: WheelPrize["type"][] = ["doblons", "fragment", "mystery", "phrase", "sound", "reaction"];
+const PRIZE_TYPES: WheelPrize["type"][] = ["doblons", "fragment", "mystery", "cosmetic", "phrase", "sound", "reaction"];
 
 export function cleanEconomy(x: Record<string, unknown>): EconomyConfig {
   const D = DEFAULT_ECONOMY;
@@ -139,8 +153,16 @@ export function cleanEconomy(x: Record<string, unknown>): EconomyConfig {
     },
     limits: { liarPerGame: int(l.liarPerGame, 0, 50, 3), exactPerGame: int(l.exactPerGame, 0, 50, 2) },
     official: { minHumans: int(o.minHumans, 1, 6, 1), minRounds: int(o.minRounds, 1, 50, 1), allowBots: o.allowBots !== false },
-    wheel: { cooldownHours: int(w.cooldownHours, 1, 168, 24), duplicateDoblons: int(w.duplicateDoblons, 0, 100000, 100), prizes },
-    fragments: { needed: int(f.needed, 1, 100, 6), allOwnedDoblons: int(f.allOwnedDoblons, 0, 100000, 500) },
+    wheel: { cooldownHours: int(w.cooldownHours, 1, 168, 24), duplicateDoblons: int(w.duplicateDoblons, 0, 100000, 100), cosmeticDoblons: int(w.cosmeticDoblons, 0, 100000, 40), prizes },
+    fragments: { needed: int(f.needed, 1, 100, 6), allOwnedDoblons: int(f.allOwnedDoblons, 0, 100000, 30) },
+    chests: (Array.isArray(x.chests) ? x.chests : D.chests).slice(0, 6).map((q, i) => {
+      const c = q as Record<string, unknown>; const d = D.chests[i] ?? D.chests[0];
+      const o = (c.odds ?? {}) as Record<string, unknown>;
+      const odds = Object.fromEntries(CHEST_CATS.map((k) => [k, int(o[k], 0, 100, 0)])) as ChestOdds;
+      const tot = CHEST_CATS.reduce((n, k) => n + odds[k], 0);
+      if (tot !== 100) throw new EconomyError(`${String(c.name ?? d.name)} : les probabilités doivent faire 100 % (actuellement ${tot} %)`);
+      return { id: String(c.id ?? d.id).slice(0, 20), name: String(c.name ?? d.name).slice(0, 30), price: int(c.price, 1, 1_000_000, d.price), compensation: int(c.compensation, 0, 1_000_000, d.compensation), odds };
+    }),
     levels: { base: int(lv.base, 10, 100000, 100), step: int(lv.step, 0, 100000, 30), quad: int(lv.quad, 0, 1000, 1) },
     levelRewards: (Array.isArray(x.levelRewards) ? x.levelRewards : D.levelRewards).slice(0, 40).map((q) => {
       const o2 = q as Record<string, unknown>;
@@ -152,6 +174,19 @@ export function cleanEconomy(x: Record<string, unknown>): EconomyConfig {
 }
 
 /** Tirage pondéré (côté serveur uniquement). */
+/** Catégorie tirée dans un coffre (rnd ∈ [0, 1[). */
+export function drawChest(odds: ChestOdds, rnd: number): ChestCat {
+  let x = rnd * 100;
+  for (const k of CHEST_CATS) { if (odds[k] <= 0) continue; if (x < odds[k]) return k; x -= odds[k]; }
+  return CHEST_CATS.filter((k) => odds[k] > 0).at(-1) ?? "common";
+}
+/** Raretés de repli si la rareté tirée est épuisée : la plus proche d'abord (à égalité, la plus haute). */
+export function rarityFallbacks(cat: "common" | "rare" | "epic" | "legendary", odds: ChestOdds) {
+  const order = ["common", "rare", "epic", "legendary"] as const;
+  const i = order.indexOf(cat);
+  return [...order].filter((k) => k === cat || odds[k] > 0)
+    .sort((a, b) => Math.abs(order.indexOf(a) - i) - Math.abs(order.indexOf(b) - i) || order.indexOf(b) - order.indexOf(a));
+}
 export function drawPrize(prizes: WheelPrize[], rnd: number): WheelPrize {
   const list = prizes.filter((p) => p.active && p.weight > 0);
   const total = list.reduce((n, p) => n + p.weight, 0);

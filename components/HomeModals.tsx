@@ -58,7 +58,7 @@ export function SuccessModal({ onClose, profile, prog, onAccount }: { onClose: (
   return (
     <Modal title="Succès" onClose={onClose} wide>
       {!member && (
-        <p className="guest-note">👤 Les succès se débloquent avec un compte (gratuit, sans e-mail). Tes parties déjà jouées comptent dès sa création. <button className="pill pill-btn" onClick={onAccount}>Créer mon compte</button></p>
+        <p className="guest-note">👤 Les succès se débloquent avec un compte gratuit (e-mail + mot de passe). La progression d&apos;invité n&apos;est pas reprise. <button className="pill pill-btn" onClick={onAccount}>Créer mon compte</button></p>
       )}
       <div className="success-head">
         <div><b>{done}</b> / {exploits.length} exploits</div>

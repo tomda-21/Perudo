@@ -23,9 +23,9 @@ export type CupItem = {
 };
 export type ReactionItem = { id: string; label: string; emoji: string; price: number };
 export const FRAME_STYLES = ["gold", "neon", "fire", "ice", "rainbow", "jungle", "bronze", "goldanim"] as const;
-export type FrameItem = { id: string; name: string; style: (typeof FRAME_STYLES)[number]; price: number; reward?: boolean }; // reward : se gagne (palier de niveau), jamais vendu
+export type FrameItem = { id: string; name: string; style: (typeof FRAME_STYLES)[number]; price: number; reward?: boolean; rarity?: Rarity }; // reward : se gagne (palier de niveau), jamais vendu
 export const VICTORY_STYLES = ["confetti", "fireworks", "goldrain", "hearts", "stars"] as const;
-export type VictoryItem = { id: string; name: string; style: (typeof VICTORY_STYLES)[number]; price: number };
+export type VictoryItem = { id: string; name: string; style: (typeof VICTORY_STYLES)[number]; price: number; rarity?: Rarity };
 export const MAP_ANIMS = ["none", "embers", "sparkles", "float", "clouds", "rain"] as const;
 export type MapAnim = (typeof MAP_ANIMS)[number];
 export type MapItem = {
@@ -74,8 +74,8 @@ export const DEFAULT_CUPS: CupItem[] = [
   cup("bronze", "Bronze", "exploit", "rare", { type: "wins", n: 1 }, "Ta première victoire"),
   cup("royal", "Royal", "exploit", "épique", { type: "wins", n: 8 }, "Or, couronne et velours"),
   cup("celestial", "Céleste", "exploit", "légendaire", { type: "wins", n: 25 }, "Ailes d'ange et lumière céleste", "glow"),
-  cup("detective", "Détecteur de mensonges", "exploit", "épique", { type: "liarWins", n: 15 }, "15 « Menteur ! » réussis"),
-  cup("oracle", "Oracle", "exploit", "épique", { type: "exactWins", n: 5 }, "5 « Exact ! » réussis", "sparkle"),
+  cup("detective", "Détecteur de mensonges", "exploit", "épique", { type: "liarWins", n: 15 }, "15 Dudo réussis"),
+  cup("oracle", "Oracle", "exploit", "épique", { type: "exactWins", n: 5 }, "5 Exact réussis", "sparkle"),
   cup("phoenix", "Phénix", "exploit", "légendaire", { type: "phoenix", n: 1 }, "Gagner après être tombé à un seul dé", "flames"),
   cup("invincible", "Invincible", "exploit", "légendaire", { type: "flawless", n: 1 }, "Gagner sans perdre un seul dé", "flames"),
   cup("glacier", "Glaciaire", "mystery", "rare", { type: "special" }, "Glace et cristaux bleus", "sparkle"),
@@ -86,6 +86,11 @@ export const DEFAULT_CUPS: CupItem[] = [
   cup("genie", "Génie", "mystery", "épique", { type: "special" }, "Lampe magique et fumée", "smoke"),
   cup("lucky", "Porte-Bonheur", "mystery", "épique", { type: "special" }, "Chat porte-bonheur"),
   cup("crystal", "Cristal", "mystery", "légendaire", { type: "special" }, "Reflets irisés de pierres précieuses", "sparkle"),
+  // § 49 : prestige, vendus uniquement en boutique (illustrations provisoires)
+  { ...cup("emerald", "Émeraude", "shop", "légendaire", { type: "special" }, "Velours vert et couronne d'or", "glow"), price: 8000 },
+  { ...cup("sapphire", "Saphir", "shop", "légendaire", { type: "special" }, "Velours bleu nuit et or", "glow"), price: 12000 },
+  { ...cup("amethyst", "Améthyste", "shop", "légendaire", { type: "special" }, "Velours pourpre et pierres violettes", "sparkle"), price: 20000 },
+  { ...cup("onyx", "Onyx", "shop", "légendaire", { type: "special" }, "Noir profond, or massif", "sparkle"), price: 25000 },
 ];
 
 export const DEFAULT_CHALLENGES: ChallengeItem[] = [
@@ -105,14 +110,14 @@ export const DEFAULT_CHALLENGES: ChallengeItem[] = [
 export const DEFAULT_CONTENT: PublicContent = {
   phrases: [
     ...PHRASES.map((p) => ({ id: p.id, text: p.text, audio: null, price: 0 })),
-    { id: "allin", text: "all in !", audio: null, price: 200 },
-    { id: "jelsens", text: "je le sens pas…", audio: null, price: 200 },
-    { id: "trop-facile", text: "trop facile", audio: null, price: 200 },
+    { id: "allin", text: "all in !", audio: null, price: 0 },
+    { id: "jelsens", text: "je le sens pas…", audio: null, price: 0 },
+    { id: "trop-facile", text: "trop facile", audio: null, price: 0 },
   ],
   sounds: [
     ...SOUNDS.map((s) => ({ id: s.id, label: s.label, icon: s.icon, file: null, synth: s.id, volume: 1, anim: s.anim, price: 0 })),
-    { id: "klaxon", label: "Klaxon", icon: "📯", file: null, synth: "klaxon", volume: 1, anim: "pop", price: 300 },
-    { id: "tambour", label: "Roulement", icon: "🥁", file: null, synth: "tambour", volume: 1, anim: "shake", price: 300 },
+    { id: "klaxon", label: "Klaxon", icon: "📯", file: null, synth: "klaxon", volume: 1, anim: "pop", price: 0 },
+    { id: "tambour", label: "Roulement", icon: "🥁", file: null, synth: "tambour", volume: 1, anim: "shake", price: 0 },
   ],
   cups: DEFAULT_CUPS,
   // Enfer, Paradis et Rue urbaine : décors provisoires (en attente d'illustrations HD) → hors tirage par défaut
@@ -121,20 +126,22 @@ export const DEFAULT_CONTENT: PublicContent = {
     { id: "rire", label: "Rire", emoji: "😂", price: 0 }, { id: "surprise", label: "Surprise", emoji: "😱", price: 0 },
     { id: "suspicion", label: "Suspicion", emoji: "🤨", price: 0 }, { id: "bravo", label: "Bravo", emoji: "👏", price: 0 },
     { id: "provoc", label: "Provoc", emoji: "🔥", price: 0 }, { id: "moquerie", label: "Moquerie", emoji: "😈", price: 0 },
-    { id: "clown", label: "Clown", emoji: "🤡", price: 350 }, { id: "goat", label: "GOAT", emoji: "🐐", price: 350 },
-    { id: "respect", label: "Respect", emoji: "🫡", price: 350 }, { id: "caca", label: "Caca", emoji: "💩", price: 350 },
+    { id: "clown", label: "Clown", emoji: "🤡", price: 0 }, { id: "goat", label: "GOAT", emoji: "🐐", price: 0 },
+    { id: "respect", label: "Respect", emoji: "🫡", price: 0 }, { id: "caca", label: "Caca", emoji: "💩", price: 0 },
   ],
   frames: [
-    { id: "gold", name: "Cadre doré", style: "gold", price: 600 }, { id: "neon", name: "Néon", style: "neon", price: 600 },
-    { id: "fire", name: "Flammes", style: "fire", price: 600 }, { id: "ice", name: "Givre", style: "ice", price: 600 },
-    { id: "rainbow", name: "Arc-en-ciel", style: "rainbow", price: 600 }, { id: "jungle", name: "Jungle", style: "jungle", price: 600 },
+    // § 53 : cadres de 300 à 2 000 Doblons selon la rareté
+    { id: "gold", name: "Cadre doré", style: "gold", price: 300, rarity: "commun" }, { id: "jungle", name: "Jungle", style: "jungle", price: 300, rarity: "commun" },
+    { id: "ice", name: "Givre", style: "ice", price: 800, rarity: "rare" }, { id: "neon", name: "Néon", style: "neon", price: 800, rarity: "rare" },
+    { id: "fire", name: "Flammes", style: "fire", price: 1400, rarity: "épique" }, { id: "rainbow", name: "Arc-en-ciel", style: "rainbow", price: 2000, rarity: "légendaire" },
     { id: "bronze-gobelin", name: "Bronze du Gobelin", style: "bronze", price: 0, reward: true },
     { id: "gold-anim", name: "Or animé", style: "goldanim", price: 0, reward: true },
   ],
   victories: [
-    { id: "confetti", name: "Confettis", style: "confetti", price: 0 }, { id: "fireworks", name: "Feu d'artifice", style: "fireworks", price: 1200 },
-    { id: "goldrain", name: "Pluie d'or", style: "goldrain", price: 1200 }, { id: "hearts", name: "Cœurs", style: "hearts", price: 1200 },
-    { id: "stars", name: "Étoiles filantes", style: "stars", price: 1200 },
+    // § 53 : animations de 1 000 à 4 000 Doblons selon la rareté
+    { id: "confetti", name: "Confettis", style: "confetti", price: 0 }, { id: "hearts", name: "Cœurs", style: "hearts", price: 1000, rarity: "commun" },
+    { id: "stars", name: "Étoiles filantes", style: "stars", price: 2000, rarity: "rare" }, { id: "fireworks", name: "Feu d'artifice", style: "fireworks", price: 3000, rarity: "épique" },
+    { id: "goldrain", name: "Pluie d'or", style: "goldrain", price: 4000, rarity: "légendaire" },
   ],
   challenges: DEFAULT_CHALLENGES,
   settings: DEFAULT_SETTINGS,
@@ -248,16 +255,18 @@ export function cleanReaction(d: Record<string, unknown>): Omit<ReactionItem, "i
   if (!label || !emoji) throw new ContentError("Il faut un nom et un emoji");
   return { label, emoji, price: price(d.price) };
 }
+const RARITIES: Rarity[] = ["commun", "rare", "épique", "légendaire"];
+const rarityOf = (v: unknown): Rarity => (RARITIES.includes(v as Rarity) ? (v as Rarity) : "commun");
 export function cleanFrame(d: Record<string, unknown>): Omit<FrameItem, "id"> {
   const name = str(d.name, 24);
   if (!name) throw new ContentError("Donne un nom au cadre");
   const reward = d.reward === true;
-  return { name, style: FRAME_STYLES.includes(d.style as FrameItem["style"]) ? (d.style as FrameItem["style"]) : "gold", price: reward ? 0 : price(d.price), ...(reward ? { reward } : {}) };
+  return { name, style: FRAME_STYLES.includes(d.style as FrameItem["style"]) ? (d.style as FrameItem["style"]) : "gold", price: reward ? 0 : price(d.price), rarity: rarityOf(d.rarity), ...(reward ? { reward } : {}) };
 }
 export function cleanVictory(d: Record<string, unknown>): Omit<VictoryItem, "id"> {
   const name = str(d.name, 24);
   if (!name) throw new ContentError("Donne un nom à l'animation");
-  return { name, style: VICTORY_STYLES.includes(d.style as VictoryItem["style"]) ? (d.style as VictoryItem["style"]) : "confetti", price: price(d.price) };
+  return { name, style: VICTORY_STYLES.includes(d.style as VictoryItem["style"]) ? (d.style as VictoryItem["style"]) : "confetti", price: price(d.price), rarity: rarityOf(d.rarity) };
 }
 export function cleanChallenge(d: Record<string, unknown>): Omit<ChallengeItem, "id"> {
   const name = str(d.name, 30);

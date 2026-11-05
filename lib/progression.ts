@@ -8,10 +8,10 @@ import "server-only";
 import { createHash, randomBytes, randomInt } from "crypto";
 import { checkPassword, hashPassword } from "./admin";
 import { publicContent } from "./content-server";
-import type { CupItem, PublicContent } from "./content";
-import { drawPrize, EconomyConfig, levelOf, levelRewardsUpTo, periodEnd, periodKeys, pickChallenges, titlesUnlocked, ChallengeItem } from "./economy";
+import type { CupItem, PublicContent, Rarity } from "./content";
+import { CHEST_CATS, ChestCat, drawChest, drawPrize, EconomyConfig, rarityFallbacks, levelOf, levelRewardsUpTo, periodEnd, periodKeys, pickChallenges, titlesUnlocked, ChallengeItem } from "./economy";
 import { ResultRow, RuleError } from "./rules";
-import { srv, srv2 } from "./srv";
+import { srv, srv2, srv5 } from "./srv";
 
 const sha = (x: string) => createHash("sha256").update(x).digest("hex");
 const rnd = () => randomInt(0, 1_000_000) / 1_000_000;
@@ -144,7 +144,8 @@ async function advanceChallenges(profileId: string, c: PublicContent, inc: Recor
   for (const ch of currentChallenges(c)) {
     if ((prog[`${ch.key}|${ch.metric}`] ?? 0) >= ch.target) {
       const r = challengeReward(c.economy, ch);
-      await srv2("grant", { profile_id: profileId, event_id: evId(ch.key, ch), kind: "challenge", doblons: r.doblons, xp: r.xp, fragments: ch.fragments, detail: { name: ch.name, period: ch.period } });
+      const f = ch.fragments ? convertFragments(c, (await wallet(profileId)).inventory, ch.fragments) : { fragments: 0, doblons: 0 };
+      await srv2("grant", { profile_id: profileId, event_id: evId(ch.key, ch), kind: "challenge", doblons: r.doblons + f.doblons, xp: r.xp, fragments: f.fragments, detail: { name: ch.name, period: ch.period } });
     }
   }
 }
@@ -209,6 +210,7 @@ function ledgerLabel(l: { kind: string; detail: Record<string, unknown> | null }
   switch (l.kind) {
     case "game": return d.won ? "Victoire" : "Partie terminée";
     case "level": return `Palier du niveau ${d.level ?? ""}`;
+    case "chest": return `${d.name ?? "Coffre"} : ${d.item ?? (d.compensated ? "compensation" : "fragment")}`;
     case "challenge": return `Défi : ${d.name ?? ""}`;
     case "wheel": return `Roue : ${d.label ?? ""}${Number(d.compensated) ? " (doublon compensé)" : ""}`;
     case "shop": return `Achat : ${d.name ?? ""}`;
@@ -230,25 +232,44 @@ export function publicEconomy(e: EconomyConfig) {
 const pickOne = <T,>(list: T[]) => list[randomInt(0, list.length)];
 const mysteries = (c: PublicContent) => c.cups.filter((x) => x.category === "mystery");
 
+/** Une fois tous les mystères possédés, chaque fragment devient des Doblons (30 par défaut). */
+function convertFragments(c: PublicContent, inv: Inv[], fragments: number) {
+  if (fragments <= 0 || mysteries(c).some((m) => !owns(inv, "cup", m.id))) return { fragments, doblons: 0 };
+  return { fragments: 0, doblons: fragments * c.economy.fragments.allOwnedDoblons };
+}
+/** Cosmétiques vendus (cadres + animations) pas encore possédés, éventuellement d'une rareté. */
+function freeCosmetics(c: PublicContent, inv: Inv[], rarity?: Rarity) {
+  return [
+    ...c.frames.filter((x) => !x.reward && x.price > 0).map((x) => ({ type: "frame" as ItemType, id: x.id, name: x.name, rarity: x.rarity ?? "commun" })),
+    ...c.victories.filter((x) => x.price > 0).map((x) => ({ type: "victory" as ItemType, id: x.id, name: x.name, rarity: x.rarity ?? "commun" })),
+  ].filter((x) => !owns(inv, x.type, x.id) && (!rarity || x.rarity === rarity));
+}
+
 export async function spinWheel(profileId: string) {
   const c = await publicContent();
   const e = c.economy;
   const w = await wallet(profileId);
-  const prize = drawPrize(e.wheel.prizes, rnd());
+  const prize = drawPrize(e.wheel.prizes, rnd()); // tiré côté serveur AVANT l'animation
   let item: { type: ItemType; id: string; name: string } | null = null;
   let doblons = 0, fragments = 0, compensated = false;
   if (prize.type === "doblons") doblons = prize.amount;
-  else if (prize.type === "fragment") fragments = Math.max(1, prize.amount);
-  else if (prize.type === "mystery") {
+  else if (prize.type === "fragment") {
+    const f = convertFragments(c, w.inventory, Math.max(1, prize.amount));
+    fragments = f.fragments; doblons = f.doblons; compensated = f.doblons > 0;
+  } else if (prize.type === "mystery") {
     const free = mysteries(c).filter((m) => !owns(w.inventory, "cup", m.id));
     if (free.length) { const m = pickOne(free); item = { type: "cup", id: m.id, name: m.name }; }
+    else { doblons = e.wheel.duplicateDoblons; compensated = true; } // tous possédés : 100 Doblons
+  } else if (prize.type === "cosmetic") {
+    const free = freeCosmetics(c, w.inventory);
+    if (free.length) item = pickOne(free);
+    else { doblons = e.wheel.cosmeticDoblons; compensated = true; }
   } else {
-    // « Phrase ou réaction » : un objet payant pas encore possédé
     const types: ItemType[] = prize.type === "phrase" ? ["phrase", "reaction"] : [prize.type];
     const free = types.flatMap((t) => catalogOf(c, t).filter((x) => x.price > 0 && !owns(w.inventory, t, x.id)).map((x) => ({ type: t, id: x.id, name: x.name })));
     if (free.length) item = pickOne(free);
+    else { doblons = e.wheel.cosmeticDoblons; compensated = true; }
   }
-  if (prize.type !== "doblons" && prize.type !== "fragment" && !item) { doblons = e.wheel.duplicateDoblons; compensated = true; }
   const res = await srv2<{ ok: boolean; next: string; compensated: number }>("spin", {
     profile_id: profileId, hours: e.wheel.cooldownHours, prize_id: prize.id,
     doblons, fragments, item: item ? { type: item.type, id: item.id } : null, fallback: e.wheel.duplicateDoblons,
@@ -257,13 +278,51 @@ export async function spinWheel(profileId: string) {
   if (!res.ok) throw new RuleError("La roue n'est pas encore prête");
   return {
     prizeId: prize.id, label: prize.label, icon: prize.icon,
-    item: item?.name ?? null, itemType: item?.type ?? null,
+    item: item?.name ?? null, itemType: item?.type ?? null, itemId: item?.id ?? null,
     doblons: doblons + res.compensated, fragments,
     compensated: compensated || res.compensated > 0, next: res.next,
   };
 }
 
-// ---------------- boutique ----------------
+// ---------------- coffres mystères (§ 54–55) ----------------
+const RAR: Record<"common" | "rare" | "epic" | "legendary", Rarity> = { common: "commun", rare: "rare", epic: "épique", legendary: "légendaire" };
+export async function openChest(profileId: string, chestId: string) {
+  const c = await publicContent();
+  const chest = c.economy.chests.find((x) => x.id === chestId);
+  if (!chest) throw new RuleError("Coffre introuvable");
+  const w = await wallet(profileId);
+  if (w.wallet.doblons < chest.price) throw new RuleError("Pas assez de Doblons");
+  const cat: ChestCat = drawChest(chest.odds, rnd());
+  let item: { type: ItemType; id: string; name: string; rarity?: Rarity } | null = null;
+  let doblons = 0, fragments = 0, compensated = false, converted = false;
+  if (cat === "fragment") {
+    const f = convertFragments(c, w.inventory, 1);
+    fragments = f.fragments; doblons = f.doblons; converted = f.doblons > 0;
+  } else if (cat === "mystery") {
+    const free = mysteries(c).filter((m) => !owns(w.inventory, "cup", m.id));
+    if (free.length) { const m = pickOne(free); item = { type: "cup", id: m.id, name: m.name, rarity: m.rarity }; }
+  } else {
+    // objet non possédé de la rareté tirée, sinon la rareté éligible la plus proche
+    for (const r of rarityFallbacks(cat, chest.odds)) {
+      const free = freeCosmetics(c, w.inventory, RAR[r]);
+      if (free.length) { item = pickOne(free); break; }
+    }
+  }
+  if (cat !== "fragment" && !item) { doblons = chest.compensation; compensated = true; }
+  const res = await srv5<"funds" | { ok: true; compensated: number }>("chest_open", {
+    profile_id: profileId, price: chest.price, doblons, fragments, compensation: chest.compensation,
+    item: item ? { type: item.type, id: item.id } : null,
+    detail: { chest: chest.id, name: chest.name, cat, item: item?.name ?? null, type: item?.type ?? null },
+  });
+  if (res === "funds") throw new RuleError("Pas assez de Doblons");
+  const late = res.compensated > 0; // objet obtenu entre-temps : compensé
+  return {
+    chest: chest.id, cat, item: late ? null : item, doblons: doblons + res.compensated, fragments,
+    compensated: compensated || late, converted,
+  };
+}
+export { CHEST_CATS };
+
 export async function buy(profileId: string, type: ItemType, id: string) {
   const c = await publicContent();
   const it = catalogOf(c, type).find((x) => x.id === id);
@@ -277,13 +336,16 @@ export async function buy(profileId: string, type: ItemType, id: string) {
 }
 
 // ---------------- fragments ----------------
-export async function exchangeFragments(profileId: string) {
+/** 6 fragments → le gobelet mystère CHOISI (non possédé). */
+export async function exchangeFragments(profileId: string, cupId?: string) {
   const c = await publicContent();
   const e = c.economy;
   const w = await wallet(profileId);
   if (w.wallet.fragments < e.fragments.needed) throw new RuleError(`Il faut ${e.fragments.needed} fragments`);
   const free = mysteries(c).filter((m) => !owns(w.inventory, "cup", m.id));
-  const m: CupItem | null = free.length ? pickOne(free) : null;
+  if (!free.length) throw new RuleError("Tu possèdes déjà tous les gobelets mystères");
+  const m: CupItem | null = cupId ? free.find((x) => x.id === cupId) ?? null : pickOne(free);
+  if (!m) throw new RuleError("Choisis un gobelet mystère que tu ne possèdes pas encore");
   const r = await srv2<string | { ok: boolean; compensated: number }>("exchange", {
     profile_id: profileId, need: e.fragments.needed, item: m ? { id: m.id } : null, fallback: e.fragments.allOwnedDoblons,
   });

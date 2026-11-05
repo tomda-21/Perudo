@@ -49,3 +49,26 @@ test("mois civil à Paris (heure d'hiver et d'été)", () => {
   assert.equal(parisMonthStart(new Date("2026-07-03T12:00:00Z")), "2026-06-30T22:00:00.000Z");
   assert.equal(parisMonthStart(new Date("2026-10-31T23:30:00Z")), "2026-10-31T23:00:00.000Z"); // déjà le 1er novembre à Paris
 });
+
+import { drawChest, rarityFallbacks, CHEST_CATS } from "../lib/economy";
+test("coffres : prix, compensations et probabilités du cahier des charges (total 100 %)", () => {
+  const C = Object.fromEntries(DEFAULT_ECONOMY.chests.map((c) => [c.id, c]));
+  assert.deepEqual([C.classic.price, C.rare.price, C.epic.price], [300, 800, 2000]);
+  assert.deepEqual([C.classic.compensation, C.rare.compensation, C.epic.compensation], [75, 200, 500]);
+  assert.deepEqual(C.epic.odds, { common: 0, rare: 15, epic: 45, legendary: 25, fragment: 10, mystery: 5 });
+  for (const c of DEFAULT_ECONOMY.chests) assert.equal(CHEST_CATS.reduce((n, k) => n + c.odds[k], 0), 100);
+  assert.throws(() => cleanEconomy({ ...DEFAULT_ECONOMY, chests: [{ ...C.rare, odds: { ...C.rare.odds, mystery: 50 } }] } as never), /100 %/);
+});
+test("coffres : le tirage respecte les probabilités et n'attribue jamais une catégorie à 0 %", () => {
+  const odds = DEFAULT_ECONOMY.chests[0].odds; const n: Record<string, number> = {};
+  for (let i = 0; i < 30000; i++) { const k = drawChest(odds, Math.random()); n[k] = (n[k] ?? 0) + 1; }
+  assert.ok(Math.abs(n.common / 30000 - 0.7) < 0.02);
+  assert.ok(Math.abs(n.fragment / 30000 - 0.06) < 0.01);
+  assert.equal(n.epic ?? 0, 0); assert.equal(n.legendary ?? 0, 0);
+  assert.equal(drawChest(odds, 0.99999), "mystery");
+});
+test("doublons : repli sur la rareté éligible la plus proche", () => {
+  const epic = DEFAULT_ECONOMY.chests[2].odds;
+  assert.deepEqual(rarityFallbacks("epic", epic), ["epic", "legendary", "rare"]); // pas de commun dans l'Épique
+  assert.deepEqual(rarityFallbacks("common", DEFAULT_ECONOMY.chests[0].odds), ["common", "rare"]);
+});

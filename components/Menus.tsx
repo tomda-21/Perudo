@@ -150,10 +150,12 @@ export function CupsModal({ onClose, profile, prog, openShop }: { onClose: () =>
     setMsg("");
     try { setData(await api.updateProfile({ cup: id })); } catch (e) { setMsg((e as Error).message); }
   }
-  async function exchange() {
+  // § 48 : 6 fragments → le gobelet mystère de son choix
+  async function exchange(cupId: string, name: string) {
+    if (!confirm(`Échanger ${need} fragments contre « ${name} » ?`)) return;
     setBusy(true); setMsg("");
     try {
-      const r = await api.progressAction<{ cup: string | null; doblons: number }>({ op: "exchange" });
+      const r = await api.progressAction<{ cup: string | null; doblons: number }>({ op: "exchange", cup: cupId });
       prog.setData(r.progress);
       setData(await api.myProfile());
       setMsg(r.result.cup ? `🎁 Nouveau gobelet : ${r.result.cup} !` : `Tu as déjà tous les mystères : +${r.result.doblons} Doblons.`);
@@ -178,7 +180,7 @@ export function CupsModal({ onClose, profile, prog, openShop }: { onClose: () =>
             <div className="frag-box">
               <span>🧩 Fragments : <b>{p.fragments} / {need}</b></span>
               <div className="progress"><span style={{ width: `${Math.min(100, (p.fragments / need) * 100)}%` }} /></div>
-              <button className="gbtn gbtn-purple gbtn-sm" disabled={busy || p.fragments < need} onClick={exchange}>Échanger {need} fragments</button>
+              <span className="muted small">{p.fragments >= need ? "Choisis ci-dessous le gobelet mystère que tu veux." : `Encore ${need - p.fragments} fragment${need - p.fragments > 1 ? "s" : ""} pour choisir un gobelet mystère.`}</span>
               <span className="muted small">Donne un gobelet mystère que tu n&apos;as pas encore, au hasard. Fragments : roue et défis hebdo.</span>
             </div>
           )}
@@ -199,7 +201,8 @@ export function CupsModal({ onClose, profile, prog, openShop }: { onClose: () =>
                     {c.description && <div className="cup-desc">{c.description}</div>}
                     {equipped ? <div className="pill pill-green">Équipé</div>
                       : unlocked ? <button className="pill pill-btn" onClick={() => equip(c.id)}>Équiper</button>
-                      : tab === "shop" ? <button className="pill pill-btn" onClick={openShop}>🪙 {c.price}</button>
+                      : tab === "shop" ? <button className="pill pill-btn" onClick={openShop}>🪙 {(c.price ?? 0).toLocaleString("fr-FR")}</button>
+                      : tab === "mystery" && p?.member && p.fragments >= need ? <button className="gbtn gbtn-purple gbtn-sm" disabled={busy} onClick={() => exchange(c.id, c.name)}>🧩 Choisir ({need})</button>
                       : <div className="pill">{tab === "mystery" ? "Roue ou fragments" : condLabel(c.cond)}</div>}
                     {!unlocked && tab === "exploit" && member && (
                       <div className="progress" title={`${pr.have} / ${pr.need}`}>

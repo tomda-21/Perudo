@@ -1,7 +1,7 @@
 // Progression du joueur connecté : portefeuille, roue, boutique, fragments, titres, défis.
 // Tout est décidé ici, côté serveur (le navigateur ne fait qu'afficher).
 import { authProfile, fullStats, isMember, unlockedCups } from "@/lib/profiles";
-import { buy, equip, exchangeFragments, ItemType, progressionPayload, spinWheel } from "@/lib/progression";
+import { buy, equip, exchangeFragments, ItemType, openChest, progressionPayload, spinWheel } from "@/lib/progression";
 import { handle, json } from "@/lib/api";
 import { RuleError } from "@/lib/rules";
 
@@ -24,7 +24,8 @@ export async function GET(req: Request) {
   }
 }
 
-const TYPES: ItemType[] = ["cup", "phrase", "sound", "reaction", "frame", "victory"];
+// § 51–52 : seuls les cadres, animations et gobelets de prestige se vendent (sons, phrases, réactions offerts)
+const TYPES: ItemType[] = ["cup", "frame", "victory"];
 
 export async function POST(req: Request) {
   try {
@@ -39,7 +40,8 @@ export async function POST(req: Request) {
         result = await buy(r.id, b.type, String(b.id ?? ""));
         break;
       }
-      case "exchange": result = await exchangeFragments(r.id); break;
+      case "exchange": result = await exchangeFragments(r.id, b.cup ? String(b.cup) : undefined); break;
+      case "chest": result = await openChest(r.id, String(b.id ?? "")); break;
       case "equip": {
         if (!["title", "frame", "victory"].includes(b.field)) throw new RuleError("Champ inconnu");
         await equip(r.id, b.field, b.value ? String(b.value) : null, await cupsOf(r.id));

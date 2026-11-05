@@ -25,7 +25,11 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
 - [x] P5 Progression : nouveaux gains, formule de niveau, paliers, 3 défis/j + 1 hebdo, classements amis, succès.
   - `lib/economy.ts` (valeurs § 40–42, `levelRewardsUpTo`), `lib/progression.ts` (`grantLevelRewards`, `challengeReward`), cadres de palier `bronze-gobelin` / `gold-anim` (reward: jamais vendus), `lib/ranking.ts` + `lib/ranking-server.ts` (`srv5 rank_stats`). Toute partie terminée compte (bots compris), invités exclus.
   - Restes : affichage des classements = P8 (amis) ; fragments au choix / conversions 30 Doblons = P6.
-- [ ] P6 Boutique : coffres (3 niveaux, tirage serveur atomique), prestige, pack de base gratuit, roue (nouveaux lots), fragments au choix.
+- [x] P6 Boutique : coffres (3 niveaux, tirage serveur atomique), prestige, pack de base gratuit, roue (nouveaux lots), fragments au choix.
+  - Coffres Classique/Rare/Épique (`openChest`, `srv5 chest_open` atomique : débit + objet + journal ; objet obtenu entre-temps → compensation). Raretés sur cadres/animations. Repli sur la rareté la plus proche puis compensation 75/200/500.
+  - Sons/phrases/réactions offerts (prix 0, plus vendus). Prestige : Émeraude 8 000, Saphir 12 000, Améthyste 20 000, Onyx 25 000 (illustrations PROVISOIRES, recoloration du Royal).
+  - Roue : lots § 58, cosmétique non possédé, 24 h glissantes ; fragments au choix (6) ; tous mystères possédés → 30 Doblons/fragment, mystère roue → 100.
+  - Aperçu 3D = CSS (plateau tournant), animations de coffre CSS légères.
 - [ ] P7 Admin : droits cosmétiques admin, XP/objets aux joueurs (jamais à soi), coffres/probabilités.
 - [ ] P8 Social : amis, invitations, présence, blocage/signalement, notifications.
 - [ ] P9 PWA + validation finale.

@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { Field } from "./kit";
 import { adminApi } from "./kit";
 import { Publisher, useSetting } from "./OtherAdmin";
-import { DEFAULT_ECONOMY, EconomyConfig, levelOf, Title, WheelPrize, xpStep } from "@/lib/economy";
+import { CHEST_CATS, DEFAULT_ECONOMY, EconomyConfig, levelOf, Title, WheelPrize, xpStep } from "@/lib/economy";
+const CHEST_LBL: Record<string, string> = { common: "Commun", rare: "Rare", epic: "Épique", legendary: "Légend.", fragment: "Fragment", mystery: "Mystère" };
 
 type Stats = {
   accounts: number; earned: number; spent: number; balance_total: number; balance_max: number; xp_total: number; spins: number;
@@ -103,7 +104,8 @@ export default function EconomyAdmin() {
           <div className="section-title">Roue du Gobelin</div>
           <div className="a-cols">
             <Num label="Délai entre deux tours (heures)" value={e.wheel.cooldownHours} min={1} max={168} onChange={(n) => set({ wheel: { ...e.wheel, cooldownHours: n } })} />
-            <Num label="Compensation d'un doublon (Doblons)" value={e.wheel.duplicateDoblons} onChange={(n) => set({ wheel: { ...e.wheel, duplicateDoblons: n } })} />
+            <Num label="Gobelet mystère déjà tous possédés (Doblons)" value={e.wheel.duplicateDoblons} onChange={(n) => set({ wheel: { ...e.wheel, duplicateDoblons: n } })} />
+            <Num label="Cosmétique : tout possédé (Doblons)" value={e.wheel.cosmeticDoblons} onChange={(n) => set({ wheel: { ...e.wheel, cosmeticDoblons: n } })} />
           </div>
           <table className="a-table">
             <thead><tr><th>Actif</th><th>Icône</th><th>Nom</th><th>Type</th><th>Quantité</th><th>%</th><th></th></tr></thead>
@@ -114,7 +116,7 @@ export default function EconomyAdmin() {
                   <td><input className="a-xs" value={p.icon} maxLength={4} onChange={(ev) => setPrize(i, { icon: ev.target.value })} /></td>
                   <td><input value={p.label} maxLength={30} onChange={(ev) => setPrize(i, { label: ev.target.value })} /></td>
                   <td><select value={p.type} onChange={(ev) => setPrize(i, { type: ev.target.value as WheelPrize["type"] })}>
-                    <option value="doblons">Doblons</option><option value="fragment">Fragments</option><option value="mystery">Gobelet mystère</option>
+                    <option value="doblons">Doblons</option><option value="fragment">Fragments</option><option value="mystery">Gobelet mystère</option><option value="cosmetic">Cosmétique non possédé</option>
                     <option value="phrase">Phrase ou réaction</option><option value="sound">Son</option><option value="reaction">Réaction</option>
                   </select></td>
                   <td>{p.type === "doblons" || p.type === "fragment" ? <input type="number" min={0} value={p.amount} onChange={(ev) => setPrize(i, { amount: Number(ev.target.value) })} /> : <span className="muted small">au hasard</span>}</td>
@@ -130,10 +132,31 @@ export default function EconomyAdmin() {
           </div>
           <p className="a-hint">Les probabilités sont affichées aux joueurs telles quelles. Objet déjà possédé (ou plus rien à gagner) : compensation en Doblons.</p>
 
+          <div className="section-title">Coffres mystères</div>
+          <table className="a-table">
+            <thead><tr><th>Coffre</th><th>Prix</th><th>Compensation</th>{CHEST_CATS.map((k) => <th key={k}>{CHEST_LBL[k]} %</th>)}<th>Total</th></tr></thead>
+            <tbody>
+              {e.chests.map((ch, i) => {
+                const setCh = (p: Partial<typeof ch>) => set({ chests: e.chests.map((x, j) => (j === i ? { ...x, ...p } : x)) });
+                const tot = CHEST_CATS.reduce((n, k) => n + Number(ch.odds[k] || 0), 0);
+                return (
+                  <tr key={ch.id}>
+                    <td><input value={ch.name} maxLength={30} onChange={(ev) => setCh({ name: ev.target.value })} /></td>
+                    <td><input type="number" min={1} value={ch.price} onChange={(ev) => setCh({ price: Number(ev.target.value) })} /></td>
+                    <td><input type="number" min={0} value={ch.compensation} onChange={(ev) => setCh({ compensation: Number(ev.target.value) })} /></td>
+                    {CHEST_CATS.map((k) => <td key={k}><input className="a-xs" type="number" min={0} max={100} value={ch.odds[k]} onChange={(ev) => setCh({ odds: { ...ch.odds, [k]: Number(ev.target.value) } })} /></td>)}
+                    <td><b className={tot === 100 ? "ok-text" : "error"}>{tot} %</b></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="a-hint">Une seule récompense par coffre, tirée par le serveur. Objet déjà possédé : un autre de la rareté la plus proche, sinon la compensation. Les probabilités sont affichées aux joueurs avant l&apos;achat.</p>
+
           <div className="section-title">Fragments mystère</div>
           <div className="a-cols">
             <Num label="Fragments pour un gobelet mystère" value={e.fragments.needed} min={1} max={100} onChange={(n) => set({ fragments: { ...e.fragments, needed: n } })} />
-            <Num label="Compensation si tous les mystères sont possédés" value={e.fragments.allOwnedDoblons} onChange={(n) => set({ fragments: { ...e.fragments, allOwnedDoblons: n } })} />
+            <Num label="Doblons par fragment (tous les mystères possédés)" value={e.fragments.allOwnedDoblons} onChange={(n) => set({ fragments: { ...e.fragments, allOwnedDoblons: n } })} />
           </div>
 
           <div className="section-title">Niveaux</div>

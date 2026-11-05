@@ -264,6 +264,11 @@ function Editor({ kind, data, onChange, isNew }: { kind: Kind; data: Record<stri
             </select>
           </Field>
           <PriceField data={data} set={set} />
+          <Field label="Rareté (tirage des coffres)">
+            <select value={String(data.rarity ?? "commun")} onChange={(e) => set("rarity", e.target.value)}>
+              {["commun", "rare", "épique", "légendaire"].map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+          </Field>
         </div>
         <div className="a-preview">
           <span className="a-label">Aperçu</span>
