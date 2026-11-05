@@ -925,7 +925,7 @@ input[type="number"] { max-width: 160px; }
 .hcard-label { position: absolute; left: 6%; right: 6%; bottom: 15%; text-align: center; font-size: 46px; line-height: 1.05; }
 .hcard-wheel .hcard-label { bottom: 26%; font-size: 50px; }
 .hcard-ribbon { position: absolute; left: 0; right: 0; top: 41.5%; text-align: center; font-size: 34px; color: #fff3d6; -webkit-text-stroke: 0.12em #5a0d0d; }
-.hcard-chip { position: absolute; left: 30%; right: 22%; bottom: 7.8%; height: 9.5%; display: flex; align-items: center; justify-content: center; font-size: 27px; color: #fff3d6; white-space: nowrap;
+.hcard-chip { position: absolute; left: 37%; right: 21%; bottom: 7.8%; height: 9.5%; display: flex; align-items: center; justify-content: center; font-size: 27px; color: #fff3d6; white-space: nowrap;
   paint-order: stroke fill; -webkit-text-stroke: 0.12em #3a1a08; }
 .hcard-alert { position: absolute; right: 6%; top: 2%; width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; font-size: 46px; color: #fff; background: radial-gradient(circle at 35% 30%, #ff8a7a, #d81f1f 60%, #8a0f0f); border: 4px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,.5); animation: alert-pop 1.6s ease-in-out infinite; }
 @keyframes alert-pop { 50% { transform: scale(1.12); } }
@@ -989,7 +989,7 @@ input[type="number"] { max-width: 160px; }
 .m-top .hp-name { font-size: 17px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .m-top .hp-level { font-size: 12px; gap: 4px; } .m-top .hp-level img { width: 16px; height: 16px; } .m-top .hp-level em { display: none; }
 .m-top .hp-xp { height: 16px; border-width: 2px; width: 112px; } .m-top .hp-xp i { font-size: 10px; }
-.m-top .hp-guest { font-size: 11px; }
+.m-top .hp-guest { font-size: 10px; white-space: nowrap; }
 .m-top-right { display: flex; align-items: center; gap: 6px; }
 .m-top .hp-wallet { height: 40px; margin: 0; padding: 0 4px 0 2px; gap: 4px; }
 .m-top .hp-wallet > img { width: 40px; height: 38px; margin-left: -6px; }
