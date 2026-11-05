@@ -15,7 +15,11 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
 - [x] P1 Moteur : Palifico (valeur verrouillée, ouverture Pax), Exact (restrictions, hors tour), 2–6 joueurs, chrono 30 s serveur, relais bot à 60 s, dés perdus.
   - Horloge : `deadline` dans l'état ; `tick()` appelé par GET et chaque action (coup auto = surenchère minimale, sinon Dudo ; révélation 6 s puis manche auto). Présence : `seen` (écrit ≤ 1×/20 s) ; absent > 60 s → `botStep` joue pour lui.
   - Reste : un joueur de retour reprend la main tout de suite (pas « au tour suivant »).
-- [ ] P2 Comptes : e-mail + mot de passe (Supabase Auth), vérif. e-mail, mot de passe oublié, suppression ; invités à blanc ; pseudo 2×/mois ; identifiant public ; admin lié au compte.
+- [x] P2 Comptes : e-mail + mot de passe (Supabase Auth), vérif. e-mail, mot de passe oublié, suppression ; invités à blanc ; pseudo 2×/mois ; identifiant public ; admin lié au compte.
+  - `lib/account.ts`, `app/api/account` (session / delete), `public.srv4` + tables `private.auth_links`, `private.admin_owner` (e-mail du propriétaire ; rôle admin attribué en base au compte dont l'e-mail VÉRIFIÉ correspond, une seule fois).
+  - Le navigateur garde la session Supabase (`perudo-auth`) ; `syncAccount()` l'échange contre le profil du compte (id + clé d'appareil).
+  - À faire par Tom : URL du site dans Supabase (Authentication → URL Configuration). Envoi d'e-mails Supabase par défaut très limité.
+  - Restes : réinit. mot de passe joueur dans l'admin = ancien système (P7) ; « parties avec bots comptent » (P5).
 - [ ] P3 Interface : dés perso permanents, mobile paysage, zooms, Palifico/élimination, gobelin commentateur, retrait anti-spam, volumes séparés, couper un joueur.
 - [ ] P4 Maps : 8 maps (3 nouvelles), décors HD manquants (fournis par Tom).
 - [ ] P5 Progression : nouveaux gains, formule de niveau, paliers, 3 défis/j + 1 hebdo, classements amis, succès.
