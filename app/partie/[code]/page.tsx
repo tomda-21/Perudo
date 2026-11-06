@@ -283,7 +283,8 @@ export default function GamePage() {
   return (
     <main className={`gv2 phase-${view.phase} map-${scene} ${myTurn ? "my-turn" : ""} ${calm ? "calm" : ""} ${callFx ? `shake-${callFx.kind}` : ""}`}>
       <div className={`gv2-bg ${decor ? "decor" : ""}`} style={decor ? undefined : { backgroundImage: `url(${bg})` }} />
-      {!calm && (mapItem?.anims?.length ?? 0) > 0 && (
+      {/* casino : plus de particules d'ambiance (elles formaient une traînée de points jaunes sur la table) */}
+      {!calm && !decor && (mapItem?.anims?.length ?? 0) > 0 && (
         <div className="g2-ambient"><Scene id="__ambient__" override={{ scene: null, image: null, layers: [], anims: mapItem!.anims }} /></div>
       )}
 

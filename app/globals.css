@@ -1629,3 +1629,15 @@ input[type="number"] { max-width: 160px; }
   .gv2-strip { padding: 6px 12px; min-height: calc(var(--b) + 8px); }               /* fiches un peu plus présentes (en plus de la scène agrandie) */
   .gv2-info { padding: 3px 10px; }
 }
+
+/* accueil : conseil (facultatif) de passer en paysage — téléphone en portrait seulement */
+.ltip { display: none; }
+@media (orientation: portrait) and (pointer: coarse) and (max-width: 1024px) {
+  .ltip { display: grid; position: fixed; inset: 0; z-index: 400; place-items: center; padding: 18px; background: rgba(20, 8, 26, .5); animation: fade-in .35s ease-out; }
+}
+.ltip-card { animation: bid2-in .45s cubic-bezier(.2, 1.4, .4, 1); padding-top: 30px; }
+.ltip-card h2 { font-size: 23px; line-height: 1.1; }
+.ltip-card p { font-size: 14.5px; }
+.ltip-x { position: absolute; right: 10px; top: 10px; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--gold, #e3b552); background: #3a1d0b; color: #ffe7b0; font-weight: 900; font-size: 15px; cursor: pointer; }
+.ltip-ok { margin-top: 4px; min-width: 160px; }
+@media (prefers-reduced-motion: reduce) { .ltip, .ltip-card { animation: none; } }

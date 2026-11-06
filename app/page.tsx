@@ -20,6 +20,7 @@ import { FriendsModal, useSocial } from "@/components/Friends";
 import { Modal } from "@/components/Panel";
 import { sounds, unlockAudio } from "@/lib/sound";
 import { useSettings } from "@/lib/settings";
+import LandscapeTip from "@/components/LandscapeTip";
 
 type Menu = null | "friends" | "play" | "profile" | "cups" | "settings" | "rules" | "wheel" | "shop" | "challenges" | "success" | "earn";
 const A = "/art/home/";
@@ -251,6 +252,7 @@ export default function Home() {
       {menu === "challenges" && <ChallengesModal prog={prog} onClose={() => setMenu(null)} />}
       {menu === "success" && <SuccessModal profile={profile.data} prog={prog} onAccount={() => setMenu("profile")} onClose={() => setMenu(null)} />}
       {menu === "earn" && <EarnModal onWheel={() => setMenu("wheel")} onChallenges={openChallenges} onClose={() => setMenu(null)} />}
+      <LandscapeTip />
     </main>
   );
 }

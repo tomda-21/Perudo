@@ -70,3 +70,11 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
 - Barre de commandes sur une seule ligne : 75 → 54 px à 844×390 (−28 %). L'œil remplace le libellé « Cacher mes dés », le tour + chrono deviennent une pastille sur le bord haut de la barre. Toutes les commandes restent (œil, − / +, 6 faces, Enchérir, Dudo !, Exact !).
 - Place récupérée : la scène passe aussi sous la barre du haut (ses coins restent libres). Table +12 % à 844×390, fiches des joueurs +20 %.
 - Vérifié au simulateur : 667×375, 740×360, 844×390, 915×412, 932×430, 1024×500, avec 2 à 6 joueurs, plus la révélation et la salle d'attente. Aucun chevauchement entre joueurs, avec la barre du haut ou celle du bas, et aucun bouton hors écran.
+
+### Conseil paysage à l'accueil + traînée jaune (06/11/2026)
+- Accueil : `components/LandscapeTip.tsx`, un panneau en bois doré « 🎲 Profite pleinement de PERUDO ! » avec un téléphone qui pivote. C'est seulement un conseil.
+  - Visible uniquement sur téléphone en portrait. Disparaît seul en paysage. Jamais sur ordinateur.
+  - Se ferme avec la croix, « Compris ! » ou un tap à côté. Ne revient plus pendant la visite (sessionStorage).
+  - Le « Tourne ton téléphone ! » obligatoire des parties est inchangé.
+- Partie : la traînée de points jaunes venait des particules d'ambiance « sparkles » du casino (couche `g2-ambient`, 40 points). Elle n'est plus affichée sur le décor du casino ; les autres lumières et effets sont intacts.
+- Vérifié au simulateur : portrait, rotation, retour portrait, fermeture, rechargement, ordinateur. En partie, 0 particule et les mêmes proportions qu'avant.
