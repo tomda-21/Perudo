@@ -44,3 +44,10 @@ export async function srv6<T = unknown>(op: string, args: Record<string, unknown
   if (error) throw new Error(`srv6 ${op}: ${error.message}`);
   return data as T;
 }
+
+/** Indicateurs par compte (ex. tutoriel d'installation iPhone déjà présenté). */
+export async function srv7<T = unknown>(op: string, args: Record<string, unknown> = {}): Promise<T> {
+  const { data, error } = await db().rpc("srv7", { p_secret: process.env.APP_SECRET!, p_op: op, p_args: args });
+  if (error) throw new Error(`srv7 ${op}: ${error.message}`);
+  return data as T;
+}

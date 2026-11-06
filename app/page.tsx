@@ -252,7 +252,7 @@ export default function Home() {
       {menu === "challenges" && <ChallengesModal prog={prog} onClose={() => setMenu(null)} />}
       {menu === "success" && <SuccessModal profile={profile.data} prog={prog} onAccount={() => setMenu("profile")} onClose={() => setMenu(null)} />}
       {menu === "earn" && <EarnModal onWheel={() => setMenu("wheel")} onChallenges={openChallenges} onClose={() => setMenu(null)} />}
-      <LandscapeTip />
+      <LandscapeTip ready={!!profile.data || !!profile.error} />
     </main>
   );
 }

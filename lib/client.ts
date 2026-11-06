@@ -99,6 +99,8 @@ export const api = {
     call<{ ok: boolean; message?: string }>("/api/social", { method: "POST", profile: true, body: JSON.stringify(body) }),
   deleteAccount: (bearer: string) =>
     call<{ ok: true }>("/api/account", { method: "POST", profile: true, bearer, body: JSON.stringify({ op: "delete", confirm: "SUPPRIMER" }) }),
+  flag: (flag: string) => call<{ account: boolean; seen: boolean }>(`/api/flags?flag=${flag}`, { profile: true }),
+  setFlag: (flag: string) => call<{ ok: boolean }>("/api/flags", { method: "POST", profile: true, body: JSON.stringify({ flag }) }),
   state: (code: string, token?: string) => call<PlayerView>(`/api/games/${code}`, { token }),
   action: (code: string, token: string, body: Record<string, unknown>) =>
     call<PlayerView>(`/api/games/${code}/action`, { method: "POST", token, body: JSON.stringify(body) }),

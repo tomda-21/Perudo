@@ -85,3 +85,14 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
   - `icons/icon-192.png` et `icon-512.png` (coins transparents), `favicon.ico` (16 à 64) et `icons/favicon-16/32.png`.
 - `app/manifest.ts` : name et short_name « Perudo », display standalone, start_url « / », thème #2a1640, fond #1c0a30, orientation libre (le paysage reste imposé seulement en partie, par le système existant).
 - `app/layout.tsx` : titre de l'onglet « Perudo », applicationName, appleWebApp (capable, titre « Perudo », barre noire), apple-touch-icon, favicons.
+
+### Tutoriel d'installation iPhone (06/11/2026)
+- `components/LandscapeTip.tsx` (export `HomeTips`) gère deux messages successifs, jamais superposés :
+  1. le conseil paysage (inchangé) ; il est terminé quand on le ferme ou qu'on tourne le téléphone ;
+  2. « Installe PERUDO sur ton iPhone ! 🎲 » avec 3 étapes illustrées (Partager, Sur l'écran d'accueil, Ajouter).
+- Le tutoriel ne s'affiche que dans Safari sur iPhone :
+  - jamais dans l'app lancée depuis l'icône (`navigator.standalone`, `display-mode: standalone`) ;
+  - jamais sur ordinateur, Android, Chrome ou Firefox iOS, ni dans les navigateurs intégrés (Instagram, Facebook, TikTok…).
+- Invité : une fois par visite (sessionStorage).
+- Compte : une seule fois. C'est mémorisé côté serveur dans `private.account_flags`, rattaché au compte via `auth_links`, jamais au pseudo, par la RPC `srv7` (protégée par APP_SECRET) et la route `/api/flags`.
+- Vérifié au simulateur (UA Safari iPhone simulée) avec 21 scénarios : ordre, rotation, navigation, actualisation, nouvelle visite, compte, nouveau compte, PWA, ordinateur, Android, Chrome iOS, Instagram. Pas testé sur un vrai iPhone.
