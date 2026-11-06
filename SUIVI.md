@@ -78,3 +78,10 @@ Dernier état audité : commit `287f118` (en ligne sur perudo-xi.vercel.app).
   - Le « Tourne ton téléphone ! » obligatoire des parties est inchangé.
 - Partie : la traînée de points jaunes venait des particules d'ambiance « sparkles » du casino (couche `g2-ambient`, 40 points). Elle n'est plus affichée sur le décor du casino ; les autres lumières et effets sont intacts.
 - Vérifié au simulateur : portrait, rotation, retour portrait, fermeture, rechargement, ordinateur. En partie, 0 particule et les mêmes proportions qu'avant.
+
+### Icône officielle + installation sur l'écran d'accueil (06/11/2026)
+- Logo officiel de Tom décliné sans retouche de l'illustration :
+  - `public/apple-touch-icon.png` (180), plus `icons/apple-touch-icon-152/167` : coins noirs comblés par le prolongement du cadre doré, car iOS arrondit lui-même.
+  - `icons/icon-192.png` et `icon-512.png` (coins transparents), `favicon.ico` (16 à 64) et `icons/favicon-16/32.png`.
+- `app/manifest.ts` : name et short_name « Perudo », display standalone, start_url « / », thème #2a1640, fond #1c0a30, orientation libre (le paysage reste imposé seulement en partie, par le système existant).
+- `app/layout.tsx` : titre de l'onglet « Perudo », applicationName, appleWebApp (capable, titre « Perudo », barre noire), apple-touch-icon, favicons.
